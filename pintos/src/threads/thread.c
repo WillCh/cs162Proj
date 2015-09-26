@@ -28,6 +28,9 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+// List added by Haoyu
+static struct  list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,6 +95,9 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+
+  // init the sleep list
+  list_init(&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -331,6 +337,35 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+void
+thread_wake_up_sleep_threads (void)
+{
+  struct list_elem *e;
+
+  ASSERT (intr_get_level () == INTR_OFF);
+  e = list_begin (&sleep_list);
+  while (e != list_end (&sleep_list)) {
+    struct thread *t = list_entry (e, struct thread, sleepelem);
+    t->sleep_ticks--;
+    if (t->sleep_ticks == 0) {
+      // remove it from the sleep_list
+      e = list_remove(e);
+      // unblock the thread
+      thread_unblock(t);
+    } else {
+      e = list_next(e);
+    }
+  }
+}
+
+
+void
+thread_put_to_sleep_queue (void) 
+{
+  ASSERT (intr_get_level () == INTR_OFF);
+  struct thread *cur = thread_current();
+  list_push_back(&sleep_list, &(cur->sleepelem));
+}
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
