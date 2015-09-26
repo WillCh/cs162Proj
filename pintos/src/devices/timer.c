@@ -97,9 +97,9 @@ timer_sleep (int64_t ticks)
     // Block the threads by disabling the interrpt
     // in this block, we will block the thread, and put the thread into the sleep queue
     enum intr_level orig_level = intr_disable();
-    thread_block();
     // put the thread into the sleeping queue
     thread_put_to_sleep_queue();
+    thread_block();
     // recover the interrupt
     intr_set_level(orig_level);
   }
