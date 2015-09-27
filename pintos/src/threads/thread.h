@@ -92,6 +92,10 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
+    //ADDED
+    struct list_elem sleepelem;
+    int64_t sleep_ticks;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -131,6 +135,10 @@ void thread_yield (void);
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
+
+//ADDED
+void thread_wake_up_sleep_threads (void);
+void thread_put_to_sleep_queue (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
