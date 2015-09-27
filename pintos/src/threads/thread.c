@@ -62,6 +62,9 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+// add one static variable to indicate whether it's the initi or not, it's extern
+static bool is_init;
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -73,7 +76,20 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+// declare of my funcs
+static struct thread *peek_most_priority_thread (void);
 
+void
+thread_set_init_state(void)
+{
+  is_init = true;
+}
+
+void
+thread_exit_init_state(void)
+{
+  is_init = false;
+}
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -121,6 +137,7 @@ thread_start (void)
 
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
+  
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -245,7 +262,14 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
+ 
   intr_set_level (old_level);
+
+   // add by Haoyu
+  //if (!is_init) {
+  //  thread_yield();
+  //}
+  // 
   
 }
 
@@ -303,15 +327,6 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
-// Function added by Haoyu
-// check the curr is the highest one or not..
-// if not yield to the highest one
-// TODO:
-void
-thread_check_priority(void)
-{
-  
-}
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
@@ -382,6 +397,9 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  // ADDED
+  // TODO: ADD IF
+  thread_yield ();
 }
 
 /* Returns the current thread's priority. */
@@ -540,7 +558,7 @@ less_thread (struct list_elem *e1, struct list_elem *e2, void *aux)
 // get the thread with the highest priority thread from ready queue
 // also delete this elem from the ready queue
 static struct thread *
-get_most_priority_thread (void)
+pop_most_priority_thread (void)
 {
   ASSERT(!list_empty (&ready_list));
   struct list_elem *maxElem = list_max(&ready_list, less_thread, 0);
@@ -550,6 +568,15 @@ get_most_priority_thread (void)
   return list_entry(maxElem, struct thread, elem);
 }
 
+// get the thread with the highest priority thread from ready queue
+// NOT delete this elem from the ready queue
+static struct thread *
+peek_most_priority_thread (void)
+{
+  ASSERT(!list_empty (&ready_list));
+  struct list_elem *maxElem = list_max(&ready_list, less_thread, 0);
+  return list_entry(maxElem, struct thread, elem);
+}
 
 /* Chooses and returns the next thread to be scheduled.  Should
    return a thread from the run queue, unless the run queue is
@@ -562,7 +589,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return get_most_priority_thread();
+    return pop_most_priority_thread();
     //return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 

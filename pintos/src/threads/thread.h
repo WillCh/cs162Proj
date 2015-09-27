@@ -143,4 +143,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void thread_set_init_state(void);
+void thread_exit_init_state(void);
+
 #endif /* threads/thread.h */

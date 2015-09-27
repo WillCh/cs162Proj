@@ -92,7 +92,7 @@ timer_sleep (int64_t ticks)
   // int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-  printf("inside sleep, the sleep time is: %lld\n", ticks);
+  // printf("inside sleep, the sleep time is: %lld\n", ticks);
   if (ticks > 0) {
     thread_current()->sleep_ticks = ticks;
     // Block the threads by disabling the interrpt
