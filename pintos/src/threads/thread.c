@@ -246,6 +246,7 @@ thread_unblock (struct thread *t)
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
+  
 }
 
 /* Returns the name of the running thread. */
@@ -300,6 +301,16 @@ thread_exit (void)
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
+}
+
+// Function added by Haoyu
+// check the curr is the highest one or not..
+// if not yield to the highest one
+// TODO:
+void
+thread_check_priority(void)
+{
+  
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
