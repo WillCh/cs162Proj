@@ -246,6 +246,7 @@ thread_unblock (struct thread *t)
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
+  
 }
 
 /* Returns the name of the running thread. */
@@ -300,6 +301,16 @@ thread_exit (void)
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
+}
+
+// Function added by Haoyu
+// check the curr is the highest one or not..
+// if not yield to the highest one
+// TODO:
+void
+thread_check_priority(void)
+{
+  
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
@@ -517,6 +528,29 @@ alloc_frame (struct thread *t, size_t size)
   return t->stack;
 }
 
+// ADD BY HAOYU
+// a function to compare the two thread
+static bool
+less_thread (struct list_elem *e1, struct list_elem *e2, void *aux)
+{
+  return ((list_entry(e1, struct thread, elem)->priority)
+   < (list_entry(e2, struct thread, elem)->priority));
+}
+
+// get the thread with the highest priority thread from ready queue
+// also delete this elem from the ready queue
+static struct thread *
+get_most_priority_thread (void)
+{
+  ASSERT(!list_empty (&ready_list));
+  struct list_elem *maxElem = list_max(&ready_list, less_thread, 0);
+  // for debug
+  // printf("the highest prior is %d \n", list_entry(maxElem, struct thread, elem)->tid);
+  list_remove(maxElem);
+  return list_entry(maxElem, struct thread, elem);
+}
+
+
 /* Chooses and returns the next thread to be scheduled.  Should
    return a thread from the run queue, unless the run queue is
    empty.  (If the running thread can continue running, then it
@@ -528,7 +562,8 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    return get_most_priority_thread();
+    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page

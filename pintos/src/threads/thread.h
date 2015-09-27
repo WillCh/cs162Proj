@@ -92,7 +92,7 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
     struct list_elem sleepelem;         // ADD BY HAOYU, the list node on sleep queue
-    int sleep_ticks;                    // ADD BY HAOYU, the rest of sleep time if the thread is sleeping
+    int64_t sleep_ticks;                    // ADD BY HAOYU, the rest of sleep time if the thread is sleeping
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
