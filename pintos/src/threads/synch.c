@@ -321,11 +321,28 @@ cond_wait (struct condition *cond, struct lock *lock)
 }
 
 bool
-less_semaphore (semaphore *s1, semaphore *s2, void *aux)
+less_semaphore (struct list_elem *s1, struct list_elem *s2, void *aux)
 {
-  //thread *t1 = 
-  return false;
+  struct semaphore *se1 = &(list_entry (s1, struct semaphore_elem, elem)->semaphore);
+  struct semaphore *se2 = &(list_entry (s2, struct semaphore_elem, elem)->semaphore);
+  struct thread *t1 = (list_entry(list_front(&(se1->waiters)), struct thread, elem));
+  struct thread *t2 = (list_entry(list_front(&(se2->waiters)), struct thread, elem));
+  return (t1->priority < t2->priority);
 }
+
+// get the thread with the highest priority thread from ready queue
+// also delete this elem from the ready queue
+static struct semaphore *
+pop_most_priority_sema_sema_queue (struct list *list)
+{
+  ASSERT(!list_empty (list));
+  struct list_elem *maxElem = list_max(list, less_semaphore, 0);
+  // for debug
+  // printf("the highest prior is %d \n", list_entry(maxElem, struct thread, elem)->tid);
+  list_remove(maxElem);
+  return (&list_entry(maxElem, struct semaphore_elem, elem)->semaphore);
+}
+
 
 /* If any threads are waiting on COND (protected by LOCK), then
    this function signals one of them to wake up from its wait.
@@ -344,8 +361,9 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
 
   // TODO: should output the highest priroty of semaphore
   if (!list_empty (&cond->waiters))
-    sema_up (&list_entry (list_pop_front (&cond->waiters),
-                          struct semaphore_elem, elem)->semaphore);
+    sema_up (pop_most_priority_sema_sema_queue(&cond->waiters));
+    // sema_up (&list_entry (list_pop_front (&cond->waiters),
+    //                      struct semaphore_elem, elem)->semaphore);
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
