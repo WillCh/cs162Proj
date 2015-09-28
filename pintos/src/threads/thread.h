@@ -146,4 +146,5 @@ int thread_get_load_avg (void);
 void thread_set_init_state(void);
 void thread_exit_init_state(void);
 
+bool less_thread (struct list_elem *e1, struct list_elem *e2, void *aux);
 #endif /* threads/thread.h */

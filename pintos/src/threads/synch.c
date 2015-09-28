@@ -101,6 +101,20 @@ sema_try_down (struct semaphore *sema)
   return success;
 }
 
+// get the thread with the highest priority thread from ready queue
+// also delete this elem from the ready queue
+static struct thread *
+pop_most_priority_thread_sema_queue (struct list *list)
+{
+  ASSERT(!list_empty (list));
+  struct list_elem *maxElem = list_max(list, less_thread, 0);
+  // for debug
+  // printf("the highest prior is %d \n", list_entry(maxElem, struct thread, elem)->tid);
+  list_remove(maxElem);
+  return list_entry(maxElem, struct thread, elem);
+}
+
+
 /* Up or "V" operation on a semaphore.  Increments SEMA's value
    and wakes up one thread of those waiting for SEMA, if any.
 
@@ -114,10 +128,15 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+    // TODO: pop the highest priority thread
+    thread_unblock(pop_most_priority_thread_sema_queue(&(sema->waiters)));
+    // thread_unblock (list_entry (list_pop_front (&sema->waiters),
+    //                            struct thread, elem));
   sema->value++;
   intr_set_level (old_level);
+  // TODO: need to yield();
+  thread_yield ();
+
 }
 
 static void sema_test_helper (void *sema_);
@@ -301,6 +320,13 @@ cond_wait (struct condition *cond, struct lock *lock)
   lock_acquire (lock);
 }
 
+bool
+less_semaphore (semaphore *s1, semaphore *s2, void *aux)
+{
+  //thread *t1 = 
+  return false;
+}
+
 /* If any threads are waiting on COND (protected by LOCK), then
    this function signals one of them to wake up from its wait.
    LOCK must be held before calling this function.
@@ -316,7 +342,8 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
-  if (!list_empty (&cond->waiters)) 
+  // TODO: should output the highest priroty of semaphore
+  if (!list_empty (&cond->waiters))
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
 }

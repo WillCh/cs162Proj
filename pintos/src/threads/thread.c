@@ -223,7 +223,11 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  // add by Haoyu
+  if (!is_init) {
+    thread_yield();
+  }
+  // 
   return tid;
 }
 
@@ -263,14 +267,7 @@ thread_unblock (struct thread *t)
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
  
-  intr_set_level (old_level);
-
-   // add by Haoyu
-  //if (!is_init) {
-  //  thread_yield();
-  //}
-  // 
-  
+  intr_set_level (old_level);  
 }
 
 /* Returns the name of the running thread. */
@@ -548,7 +545,7 @@ alloc_frame (struct thread *t, size_t size)
 
 // ADD BY HAOYU
 // a function to compare the two thread
-static bool
+bool
 less_thread (struct list_elem *e1, struct list_elem *e2, void *aux)
 {
   return ((list_entry(e1, struct thread, elem)->priority)
