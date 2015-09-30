@@ -29,7 +29,7 @@ static struct list ready_list;
 static struct list all_list;
 
 // List added by Haoyu
-static struct  list sleep_list;
+static struct list sleep_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -221,6 +221,10 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+  // ADDED by Hugh to initialize the donor list - 
+  // not sure if I should put here or in init_thread
+  list_init(&t->donorlist);
+
   /* Add to run queue. */
   thread_unblock (t);
   // add by Haoyu
@@ -393,10 +397,37 @@ thread_put_to_sleep_queue (void)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
-  // ADDED
-  // TODO: ADD IF
+  struct thread *t = thread_current ();
+  t->original_priority = new_priority;
+  t->priority = new_priority;
+
+  // Check if we dropped priority too much
+  struct list *dlist = &t->donorlist;
+  struct list_elem *e;
+  int max_priority = 0;
+
+  e = list_begin (dlist);
+  while (e != list_end(dlist))
+  {
+    struct thread *curr_thread = list_entry (e, struct thread, elem);
+    if (curr_thread->priority > max_priority)
+      max_priority = curr_thread->priority;
+    e = list_next (e);
+  }
+  // To check the last element
+  struct thread *curr_thread = list_entry (e, struct thread, elem);
+  if (curr_thread->priority > max_priority)
+    max_priority = curr_thread->priority;
+
+  if (t->waitlock != NULL)
+    donate_to(&t->waitlock->holder, t);
   thread_yield ();
+
+  // Original
+  // struct thread *cur = thread_current ();
+  // cur->priority = new_priority;  
+  // thread_yield ();
+  // TODO: ADD IF
 }
 
 /* Returns the current thread's priority. */
@@ -523,6 +554,8 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  // ADDED by Hugh
+  t->original_priority = priority;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -588,6 +621,26 @@ next_thread_to_run (void)
   else
     return pop_most_priority_thread();
     //return list_entry (list_pop_front (&ready_list), struct thread, elem);
+}
+
+// ADDED by Hugh to check if element in list
+struct list_elem *
+thread_list_find (struct list *list, struct list_elem *element)
+{
+  ASSERT (list != NULL);
+  struct thread *elem_thread = list_entry (element, struct thread, elem);
+  struct list_elem *e;
+  for (e = list_begin (list); e != list_end (list); e = list_next (e))
+    {
+      struct thread *curr_thread = list_entry (e, struct thread, elem);
+      if (elem_thread == curr_thread) 
+        return e;
+    }
+  // Have to check the last element
+  struct thread *curr_thread = list_entry (e, struct thread, elem);
+  if (elem_thread == curr_thread)
+    return e;
+  return NULL;
 }
 
 /* Completes a thread switch by activating the new thread's page

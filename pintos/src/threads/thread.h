@@ -93,6 +93,10 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
     struct list_elem sleepelem;         // ADD BY HAOYU, the list node on sleep queue
     int64_t sleep_ticks;                    // ADD BY HAOYU, the rest of sleep time if the thread is sleeping
+    int original_priority;              // ADDED BY HUGH, the original priority of a given thread
+    struct list donorlist;              // ADDED BY HUGH, list of this thread's donors
+    struct list_elem donorelem;         // ADDED BY HUGH, list element for the donor list
+    struct lock *waitlock;              // ADDED BY HUGH, the lock the thread is waiting on, if any
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -145,6 +149,9 @@ int thread_get_load_avg (void);
 
 void thread_set_init_state(void);
 void thread_exit_init_state(void);
+
+// ADDED by Hugh to find an element in a list.  NULL if not in the list.
+struct list_elem *thread_list_find (struct list *, struct list_elem *);
 
 bool less_thread (struct list_elem *e1, struct list_elem *e2, void *aux);
 #endif /* threads/thread.h */

@@ -136,7 +136,6 @@ sema_up (struct semaphore *sema)
   intr_set_level (old_level);
   // TODO: need to yield();
   thread_yield ();
-
 }
 
 static void sema_test_helper (void *sema_);
@@ -211,12 +210,28 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+  enum intr_level old_level;
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+  // ADDED by Hugh
+  struct thread *cur = thread_current ();
+  struct semaphore *sema = &lock->semaphore;
+  old_level = intr_disable ();
+  while (!sema_try_down(&lock->semaphore)) 
+  {
+    list_push_back (&sema->waiters, &cur->elem);
+    // cur->waitlock = &lock;
+    // donate_to(lock->holder, cur);
+    thread_block ();
+  }
+  intr_set_level (old_level);
+  lock->holder = cur;
+
+  // Old code:
+  // sema_down (&lock->semaphore);
+  // lock->holder = thread_current ();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -250,6 +265,35 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  // struct thread *cur = thread_current ();
+  // struct list *dlist = &cur->donorlist;
+  // struct list_elem *e;
+  // int max_priority = 0;  
+
+  // // Simultaneously remove this lock's donors and find max_priority
+  // for (e = list_begin (dlist); e != list_end (dlist); e = list_next (e))
+  // {
+  //   struct thread *curr_thread = list_entry (e, struct thread, elem);
+  //   if (curr_thread->waitlock == lock)
+  //     list_remove (e);
+  //   // Only update priority if the element is still on donor list
+  //   else if (curr_thread->priority > max_priority)
+  //     max_priority = curr_thread->priority;
+  // }
+
+  // // To check the last element
+  // struct thread *curr_thread = list_entry (e, struct thread, elem);
+  // if (curr_thread->waitlock == lock)
+  //   list_remove (e);
+  // else if (curr_thread->priority > max_priority)
+  //   max_priority = curr_thread->priority;
+
+  // // To update to the max of our donors
+  // if (list_size (dlist) == 0)
+  //   cur->priority = cur->original_priority;
+  // else if (cur->priority < max_priority)
+  //   // Might need to call donate, and not just the priority 
+  //   cur->priority = max_priority;
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
@@ -271,6 +315,21 @@ struct semaphore_elem
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
   };
+
+
+// ADDED by Hugh to donate recursively
+void
+donate_to (struct thread *donee, struct thread *donor) {
+  if (thread_list_find(&donee->donorlist, donor) == NULL)
+    list_push_back(&donee->donorlist, &donor->elem);
+  if (donee->priority < donor->priority)
+  {
+    donee->priority = donor->priority;
+    struct lock *l = donee->waitlock;
+    if (donee->waitlock != NULL)
+      donate_to(l->holder, donee);
+  }
+}
 
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
@@ -342,7 +401,6 @@ pop_most_priority_sema_sema_queue (struct list *list)
   list_remove(maxElem);
   return (&list_entry(maxElem, struct semaphore_elem, elem)->semaphore);
 }
-
 
 /* If any threads are waiting on COND (protected by LOCK), then
    this function signals one of them to wake up from its wait.
