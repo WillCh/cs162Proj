@@ -402,25 +402,10 @@ thread_set_priority (int new_priority)
   t->original_priority = new_priority;
   t->priority = new_priority;
 
-  // Check if we dropped priority too much
-  struct list *dlist = &t->donorlist;
-  struct list_elem *e;
-  int max_priority = 0;
-
-  if (!list_empty (dlist)) {
-    e = list_begin (dlist);
-    // Go until the tail sentinel guy
-    while (e != list_back(dlist))
-    {
-      struct thread *curr_thread = list_entry (e, struct thread, elem);
-      if (curr_thread->priority > max_priority)
-        max_priority = curr_thread->priority;
-      e = list_next (e);
-    }
-  }
-
   if (t->waitlock != NULL)
-    donate_to(&t->waitlock->holder, t);
+  {
+    donate_to(t->waitlock->holder, t);    
+  }
   thread_yield ();
 
   // Original

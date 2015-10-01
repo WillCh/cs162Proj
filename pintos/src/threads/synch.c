@@ -222,8 +222,8 @@ lock_acquire (struct lock *lock)
   while (!sema_try_down(&lock->semaphore)) 
   {
     list_push_back (&sema->waiters, &cur->elem);
-    cur->waitlock = &lock;
-    donate_to(lock->holder, cur);
+    cur->waitlock = lock;
+    donate_to (lock->holder, cur);
     thread_block ();
   }
   intr_set_level (old_level);
@@ -267,10 +267,12 @@ lock_release (struct lock *lock)
 
   // ADDED by Hugh v
   // List might be empty
+  enum intr_level old_level;
+ 
+  old_level = intr_disable ();
   struct thread *cur = thread_current ();
-  struct list *dlist = &cur->donorlist;  
+  struct list *dlist = &cur->donorlist;
   struct list_elem *e;
-  struct thread *max_thread;
   int max_priority = 0;
 
   if (!list_empty (dlist)) 
@@ -283,19 +285,21 @@ lock_release (struct lock *lock)
       struct list_elem *next_e = list_next (e);
       // Either remove or update the priority.
       if (curr_thread->waitlock == lock)
-        list_remove (e);
+      {
+        list_remove (e);        
+      }
       else if (curr_thread->priority > max_priority)
-        max_thread = curr_thread;
         max_priority = curr_thread->priority;
       e = next_e;
     }
 
-    // // To update to the max of our donors
-    // if (list_size (dlist) == 0)
-    //   cur->priority = cur->original_priority;
-    // else if (cur->priority < max_priority)
-    //   donate_to(cur, max_thread);
+    // To update to the max of our donors
+    if (list_empty (dlist))
+      cur->priority = cur->original_priority;
+    else if (cur->priority < max_priority)
+      cur->priority = max_priority;
   }
+  intr_set_level (old_level);
   // ADDED by Hugh ^
 
   lock->holder = NULL;
@@ -321,14 +325,35 @@ struct semaphore_elem
   };
 
 
-// ADDED by Hugh to donate recursively
+// ADDED by Hugh to donate recursively - has to find max priority
 void
 donate_to (struct thread *donee, struct thread *donor) {
-  if (thread_list_find(&donee->donorlist, donor) == NULL)
-    list_push_back(&donee->donorlist, &donor->donorelem);
-  if (donee->priority < donor->priority)
+  struct list *dlist = &donee->donorlist;
+  if (list_empty(dlist))
+    list_push_back(dlist, &donor->donorelem);
+  else if (thread_list_find(dlist, &donor->donorelem) == NULL)
+    list_push_back(dlist, &donor->donorelem);
+
+  // Find max priority
+  struct list_elem *e;
+  int max_priority = 0;
+
+  if (!list_empty (dlist)) {
+    e = list_begin (dlist);
+    // Go until the tail sentinel
+    while (e != list_back(dlist))
+    {
+      struct thread *curr_donor = list_entry (e, struct thread, elem);
+      if (curr_donor->priority > max_priority)
+        max_priority = curr_donor->priority;
+      e = list_next (e);
+    }
+  }
+
+  // If you need to update, do it, and check recursively
+  if (donee->priority < max_priority)
   {
-    donee->priority = donor->priority;
+    donee->priority = max_priority;
     struct lock *l = donee->waitlock;
     if (l != NULL)
       donate_to(l->holder, donee);
