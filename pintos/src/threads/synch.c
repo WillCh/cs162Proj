@@ -222,8 +222,8 @@ lock_acquire (struct lock *lock)
   while (!sema_try_down(&lock->semaphore)) 
   {
     list_push_back (&sema->waiters, &cur->elem);
-    // cur->waitlock = &lock;
-    // donate_to(lock->holder, cur);
+    cur->waitlock = &lock;
+    donate_to(lock->holder, cur);
     thread_block ();
   }
   intr_set_level (old_level);
@@ -265,35 +265,39 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  // struct thread *cur = thread_current ();
-  // struct list *dlist = &cur->donorlist;
-  // struct list_elem *e;
-  // int max_priority = 0;  
+  // ADDED by Hugh v
+  // List might be empty
+  struct thread *cur = thread_current ();
+  struct list *dlist = &cur->donorlist;  
+  struct list_elem *e;
+  struct thread *max_thread;
+  int max_priority = 0;
 
-  // // Simultaneously remove this lock's donors and find max_priority
-  // for (e = list_begin (dlist); e != list_end (dlist); e = list_next (e))
-  // {
-  //   struct thread *curr_thread = list_entry (e, struct thread, elem);
-  //   if (curr_thread->waitlock == lock)
-  //     list_remove (e);
-  //   // Only update priority if the element is still on donor list
-  //   else if (curr_thread->priority > max_priority)
-  //     max_priority = curr_thread->priority;
-  // }
+  if (!list_empty (dlist)) 
+  {
+    e = list_begin (dlist);
 
-  // // To check the last element
-  // struct thread *curr_thread = list_entry (e, struct thread, elem);
-  // if (curr_thread->waitlock == lock)
-  //   list_remove (e);
-  // else if (curr_thread->priority > max_priority)
-  //   max_priority = curr_thread->priority;
+    while (e != list_back (dlist)) 
+    {
+      struct thread *curr_thread = list_entry (e, struct thread, elem);
+      struct list_elem *next_e = list_next (e);
+      // Either remove or update the priority.
+      if (curr_thread->waitlock == lock)
+        list_remove (e);
+      else if (curr_thread->priority > max_priority)
+        max_thread = curr_thread;
+        max_priority = curr_thread->priority;
+      e = next_e;
+    }
 
-  // // To update to the max of our donors
-  // if (list_size (dlist) == 0)
-  //   cur->priority = cur->original_priority;
-  // else if (cur->priority < max_priority)
-  //   // Might need to call donate, and not just the priority 
-  //   cur->priority = max_priority;
+    // // To update to the max of our donors
+    // if (list_size (dlist) == 0)
+    //   cur->priority = cur->original_priority;
+    // else if (cur->priority < max_priority)
+    //   donate_to(cur, max_thread);
+  }
+  // ADDED by Hugh ^
+
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
@@ -321,12 +325,12 @@ struct semaphore_elem
 void
 donate_to (struct thread *donee, struct thread *donor) {
   if (thread_list_find(&donee->donorlist, donor) == NULL)
-    list_push_back(&donee->donorlist, &donor->elem);
+    list_push_back(&donee->donorlist, &donor->donorelem);
   if (donee->priority < donor->priority)
   {
     donee->priority = donor->priority;
     struct lock *l = donee->waitlock;
-    if (donee->waitlock != NULL)
+    if (l != NULL)
       donate_to(l->holder, donee);
   }
 }

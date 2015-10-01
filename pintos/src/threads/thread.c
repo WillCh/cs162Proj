@@ -224,6 +224,7 @@ thread_create (const char *name, int priority,
   // ADDED by Hugh to initialize the donor list - 
   // not sure if I should put here or in init_thread
   list_init(&t->donorlist);
+  t->waitlock = NULL;
 
   /* Add to run queue. */
   thread_unblock (t);
@@ -406,18 +407,17 @@ thread_set_priority (int new_priority)
   struct list_elem *e;
   int max_priority = 0;
 
-  e = list_begin (dlist);
-  while (e != list_end(dlist))
-  {
-    struct thread *curr_thread = list_entry (e, struct thread, elem);
-    if (curr_thread->priority > max_priority)
-      max_priority = curr_thread->priority;
-    e = list_next (e);
+  if (!list_empty (dlist)) {
+    e = list_begin (dlist);
+    // Go until the tail sentinel guy
+    while (e != list_back(dlist))
+    {
+      struct thread *curr_thread = list_entry (e, struct thread, elem);
+      if (curr_thread->priority > max_priority)
+        max_priority = curr_thread->priority;
+      e = list_next (e);
+    }
   }
-  // To check the last element
-  struct thread *curr_thread = list_entry (e, struct thread, elem);
-  if (curr_thread->priority > max_priority)
-    max_priority = curr_thread->priority;
 
   if (t->waitlock != NULL)
     donate_to(&t->waitlock->holder, t);
@@ -628,18 +628,20 @@ struct list_elem *
 thread_list_find (struct list *list, struct list_elem *element)
 {
   ASSERT (list != NULL);
+  if (list_empty (list)) 
+    return NULL;
+
   struct thread *elem_thread = list_entry (element, struct thread, elem);
   struct list_elem *e;
-  for (e = list_begin (list); e != list_end (list); e = list_next (e))
-    {
-      struct thread *curr_thread = list_entry (e, struct thread, elem);
-      if (elem_thread == curr_thread) 
-        return e;
-    }
-  // Have to check the last element
-  struct thread *curr_thread = list_entry (e, struct thread, elem);
-  if (elem_thread == curr_thread)
-    return e;
+  e = list_begin (list);
+  while (e != list_back (list))
+  {
+    struct thread *curr_thread = list_entry (e, struct thread, elem);
+    if (elem_thread == curr_thread)
+      return e;
+    e = list_next (e);
+  }
+
   return NULL;
 }
 
