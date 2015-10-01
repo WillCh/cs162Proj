@@ -268,25 +268,27 @@ lock_release (struct lock *lock)
   // ADDED by Hugh v
   // List might be empty
   enum intr_level old_level;
- 
   old_level = intr_disable ();
+
   struct thread *cur = thread_current ();
   struct list *dlist = &cur->donorlist;
   struct list_elem *e;
   int max_priority = 0;
 
-  if (!list_empty (dlist)) 
+  // If list isn't empty, go through an remove as necessary
+  if (!list_empty (dlist))
   {
     e = list_begin (dlist);
-
-    while (e != list_back (dlist)) 
+    while (e != list_end (dlist))
     {
-      struct thread *curr_thread = list_entry (e, struct thread, elem);
+      struct thread *curr_thread = list_entry (e, struct thread, donorelem);
+      // printf("WTF\n\n\n");
       struct list_elem *next_e = list_next (e);
-      // Either remove or update the priority.
+      // printf("WTF2\n\n\n");
+      // Either remove or update the priority
       if (curr_thread->waitlock == lock)
       {
-        list_remove (e);        
+        list_remove (e);
       }
       else if (curr_thread->priority > max_priority)
         max_priority = curr_thread->priority;
@@ -330,7 +332,7 @@ void
 donate_to (struct thread *donee, struct thread *donor) {
   struct list *dlist = &donee->donorlist;
   if (list_empty(dlist))
-    list_push_back(dlist, &donor->donorelem);
+    list_push_back(dlist, &donor->donorelem);    
   else if (thread_list_find(dlist, &donor->donorelem) == NULL)
     list_push_back(dlist, &donor->donorelem);
 
@@ -341,9 +343,9 @@ donate_to (struct thread *donee, struct thread *donor) {
   if (!list_empty (dlist)) {
     e = list_begin (dlist);
     // Go until the tail sentinel
-    while (e != list_back(dlist))
+    while (e != list_end (dlist))
     {
-      struct thread *curr_donor = list_entry (e, struct thread, elem);
+      struct thread *curr_donor = list_entry (e, struct thread, donorelem);
       if (curr_donor->priority > max_priority)
         max_priority = curr_donor->priority;
       e = list_next (e);

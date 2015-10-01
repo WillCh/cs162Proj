@@ -221,11 +221,6 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  // ADDED by Hugh to initialize the donor list - 
-  // not sure if I should put here or in init_thread
-  list_init(&t->donorlist);
-  t->waitlock = NULL;
-
   /* Add to run queue. */
   thread_unblock (t);
   // add by Haoyu
@@ -540,6 +535,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   // ADDED by Hugh
+
+  // ADDED by Hugh
+  list_init(&t->donorlist);  
   t->original_priority = priority;
   t->magic = THREAD_MAGIC;
 
@@ -613,15 +611,15 @@ struct list_elem *
 thread_list_find (struct list *list, struct list_elem *element)
 {
   ASSERT (list != NULL);
-  if (list_empty (list)) 
+  if (list_empty (list))
     return NULL;
 
-  struct thread *elem_thread = list_entry (element, struct thread, elem);
+  struct thread *elem_thread = list_entry (element, struct thread, donorelem);
   struct list_elem *e;
   e = list_begin (list);
-  while (e != list_back (list))
+  while (e != list_end (list))
   {
-    struct thread *curr_thread = list_entry (e, struct thread, elem);
+    struct thread *curr_thread = list_entry (e, struct thread, donorelem);
     if (elem_thread == curr_thread)
       return e;
     e = list_next (e);
