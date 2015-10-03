@@ -95,6 +95,12 @@ struct thread
     int64_t sleep_ticks;                    // ADD BY HAOYU, the rest of sleep time if the thread is sleeping
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    struct list_elem mlfqs_elem;              /* mlfqs priority list element. */
+
+    /* ADDED FOR ADVANCED SCHEDULER. */
+    int nice;
+    fixed_point_t recent_cpu;
+    int mlfqsPriority;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -145,6 +151,11 @@ int thread_get_load_avg (void);
 
 void thread_set_init_state(void);
 void thread_exit_init_state(void);
+
+void thread_update_load_avg(void);
+void thread_update_current_thread_recent_cpu(void);
+void thread_update_all_recent_cpu(void);
+void thread_update_all_priority(void);
 
 bool less_thread (struct list_elem *e1, struct list_elem *e2, void *aux);
 #endif /* threads/thread.h */

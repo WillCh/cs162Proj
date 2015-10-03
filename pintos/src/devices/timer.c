@@ -184,9 +184,23 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+
+  thread_update_current_thread_recent_cpu();
+
+  if (ticks % TIMER_FREQ == 0){
+      thread_update_load_avg();
+      thread_update_all_recent_cpu();
+  }
+
+  if (ticks % 4 == 0){
+     // thread_update_all_priority();
+  }
   thread_tick ();
   // check the sleep queue
   thread_wake_up_sleep_threads();
+
+  //for advanced scheduler
+  
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
