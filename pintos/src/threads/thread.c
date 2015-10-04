@@ -394,8 +394,17 @@ void
 thread_set_priority (int new_priority) 
 {
   struct thread *t = thread_current ();
-  t->original_priority = new_priority;
-  t->priority = new_priority;
+  if (t->original_priority == t->priority) {
+    t->original_priority = new_priority;
+    t->priority = new_priority;
+  }
+  // We're currently using the priority of a donor
+  else 
+  {
+    t->original_priority = new_priority;
+    if (new_priority > t->priority) 
+      t->priority = new_priority;
+  }
 
   if (t->waitlock != NULL)
   {

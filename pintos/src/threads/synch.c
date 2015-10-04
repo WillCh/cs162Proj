@@ -282,9 +282,7 @@ lock_release (struct lock *lock)
     while (e != list_end (dlist))
     {
       struct thread *curr_thread = list_entry (e, struct thread, donorelem);
-      // printf("WTF\n\n\n");
       struct list_elem *next_e = list_next (e);
-      // printf("WTF2\n\n\n");
       // Either remove or update the priority
       if (curr_thread->waitlock == lock)
       {
@@ -298,7 +296,7 @@ lock_release (struct lock *lock)
     // To update to the max of our donors
     if (list_empty (dlist))
       cur->priority = cur->original_priority;
-    else if (cur->priority < max_priority)
+    else if (cur->original_priority < max_priority)
       cur->priority = max_priority;
   }
   intr_set_level (old_level);
