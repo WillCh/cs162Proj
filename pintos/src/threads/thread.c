@@ -62,6 +62,9 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+//ADDED
+static bool is_init;
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -73,6 +76,20 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+//ADDED
+static struct thread *peek_most_priority_thread (void);
+
+// void
+// thread_set_init_state(void)
+// {
+//   is_init = true;
+// }
+
+// void
+// thread_exit_init_state(void)
+// {
+//   is_init = false;
+// }
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -207,7 +224,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  //ADD IS_INIT
   if (t->priority > thread_current ()->priority) {
     thread_yield();
   }
@@ -529,7 +546,7 @@ alloc_frame (struct thread *t, size_t size)
 }
 
 //ADDED
-static bool
+bool
 less_thread (struct list_elem *e1, struct list_elem *e2, void *aux)
 {
   return ((list_entry(e1, struct thread, elem)->priority)
@@ -537,13 +554,22 @@ less_thread (struct list_elem *e1, struct list_elem *e2, void *aux)
 }
 
 static struct thread *
-get_most_priority_thread (void)
+pop_most_priority_thread (void)
 {
   ASSERT (!list_empty (&ready_list));
   struct list_elem *maxElem = list_max(&ready_list, less_thread, 0);
   list_remove(maxElem);
   return list_entry(maxElem, struct thread, elem);
 }
+
+//ADDED
+static struct thread *
+peek_most_priority_thread (void) {
+  ASSERT(!list_empty(&ready_list));
+  struct list_elem *maxElem = list_max(&ready_list, less_thread, 0);
+  return list_entry(maxElem, struct thread, elem);
+}
+
 
 /* Chooses and returns the next thread to be scheduled.  Should
    return a thread from the run queue, unless the run queue is
@@ -556,7 +582,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return get_most_priority_thread();
+    return pop_most_priority_thread();
     //return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 

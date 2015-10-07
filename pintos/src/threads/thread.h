@@ -148,4 +148,9 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+//ADDED
+//void thread_set_init (void);
+//void thread_exit_init (void);
+bool less_thread (struct list_elem *e1, struct list_elem *e2, void *aux);
+
 #endif /* threads/thread.h */
