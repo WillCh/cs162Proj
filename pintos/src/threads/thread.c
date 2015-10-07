@@ -27,7 +27,7 @@
 static fixed_point_t load_avg;
 
 
-static struct list * priorityLists[64];
+static struct list priorityLists[64];
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -100,11 +100,8 @@ thread_mlfqs_priority_lists_init(void)
   // init priority list used by advanced scheduler
   int i;
 
-  for (i = PRI_MIN; i < PRI_MAX; ++i){
-    struct list * p_list = (struct list *)malloc(sizeof(struct list));
-    //int x = 1;
-    //list_init(p_list);
-    //priorityLists[i] = p_list;
+  for (i = PRI_MIN; i <= PRI_MAX; ++i){
+    list_init(&priorityLists[i]);
   }
 }
 
@@ -664,6 +661,7 @@ init_thread (struct thread *t, const char *name, int priority)
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
+  list_push_back (&priorityLists[t->mlfqsPriority], &t->mlfqs_elem);
   intr_set_level (old_level);
 }
 
