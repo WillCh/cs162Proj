@@ -108,9 +108,11 @@ pop_most_priority_thread_sema_queue (struct list *list)
 {
   ASSERT(!list_empty (list));
   struct list_elem *maxElem = list_max(list, less_thread, 0);
+
   list_remove(maxElem);
   return list_entry(maxElem, struct thread, elem);
 }
+
 
 /* Up or "V" operation on a semaphore.  Increments SEMA's value
    and wakes up one thread of those waiting for SEMA, if any.
@@ -315,7 +317,6 @@ cond_wait (struct condition *cond, struct lock *lock)
   lock_acquire (lock);
 }
 
-//ADDED investigate
 bool
 less_semaphore (struct list_elem *s1, struct list_elem *s2, void *aux)
 {
@@ -326,7 +327,10 @@ less_semaphore (struct list_elem *s1, struct list_elem *s2, void *aux)
   return (t1->priority < t2->priority);
 }
 
-//ADDED investigate
+
+// get the thread with the highest priority thread from ready queue
+// also delete this elem from the ready queue
+
 static struct semaphore *
 pop_most_priority_sema_sema_queue (struct list *list)
 {
@@ -350,7 +354,7 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
-  
+
   //ADDED investigate
   if (!list_empty (&cond->waiters)) 
     sema_up (pop_most_priority_sema_sema_queue(&cond->waiters));

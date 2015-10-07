@@ -99,6 +99,12 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    /* ADDED FOR ADVANCED SCHEDULER. */
+    int nice;
+    fixed_point_t recent_cpu;
+    int mlfqsPriority;
+    struct list_elem mlfqs_elem;              /* mlfqs priority list element. */
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -135,6 +141,8 @@ void thread_yield (void);
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
+void thread_wake_up_sleep_threads (void);
+void thread_put_to_sleep_queue (void); 
 
 //ADDED
 void thread_wake_up_sleep_threads (void);
@@ -148,9 +156,18 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-//ADDED
-//void thread_set_init (void);
-//void thread_exit_init (void);
-bool less_thread (struct list_elem *e1, struct list_elem *e2, void *aux);
 
+void thread_set_init_state(void);
+void thread_exit_init_state(void);
+
+void thread_update_load_avg(void);
+void thread_update_current_thread_recent_cpu(void);
+void thread_update_all_recent_cpu(void);
+void thread_update_all_priority(void);
+
+//advanced
+int thread_mlfqs_priority (struct thread * t);
+void thread_mlfqs_priority_lists_init(void);
+
+bool less_thread (struct list_elem *e1, struct list_elem *e2, void *aux);
 #endif /* threads/thread.h */

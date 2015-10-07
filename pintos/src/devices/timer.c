@@ -96,6 +96,7 @@ timer_sleep (int64_t ticks)
   if (ticks > 0) {
     thread_current()->sleep_ticks = ticks;
     // Disable interrupt to block threads
+
     enum intr_level orig_level = intr_disable();
     // put the thread into the sleeping queue
     thread_put_to_sleep_queue();
@@ -186,6 +187,17 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+
+  thread_update_current_thread_recent_cpu();
+
+  if (ticks % TIMER_FREQ == 0){
+      thread_update_load_avg();
+      thread_update_all_recent_cpu();
+  }
+
+  if (ticks % 4 == 0){
+     thread_update_all_priority();
+  }
   thread_tick ();
   // check the sleep queue at every tick
   thread_wake_up_sleep_threads();
