@@ -32,6 +32,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+bool less_semaphore (const struct list_elem *s1, const struct list_elem *s2, void *aux);
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -101,13 +102,12 @@ sema_try_down (struct semaphore *sema)
   return success;
 }
 
-//ADDED
-//get the thread with the highest priority thraed from ready queue
+/* Get the thread with the highest priority thread from ready queue. */
 static struct thread *
 pop_most_priority_thread_sema_queue (struct list *list)
 {
   ASSERT(!list_empty (list));
-  struct list_elem *maxElem = list_max(list, less_thread, 0);
+  struct list_elem *maxElem = list_max(list, thread_less, NULL);
 
   list_remove(maxElem);
   return list_entry(maxElem, struct thread, elem);
@@ -128,11 +128,8 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) 
     thread_unblock (pop_most_priority_thread_sema_queue(&(sema->waiters)));
-    //thread_unblock (list_entry (list_pop_front (&sema->waiters),
-    //                            struct thread, elem));
   sema->value++;
   intr_set_level (old_level);
-  //ADDED
   thread_yield ();
 }
 
@@ -405,7 +402,7 @@ cond_wait (struct condition *cond, struct lock *lock)
 }
 
 bool
-less_semaphore (struct list_elem *s1, struct list_elem *s2, void *aux)
+less_semaphore (const struct list_elem *s1, const struct list_elem *s2, void *aux)
 {
   struct semaphore *se1 = &(list_entry (s1, struct semaphore_elem, elem)->semaphore);
   struct semaphore *se2 = &(list_entry (s2, struct semaphore_elem, elem)->semaphore);
@@ -415,14 +412,14 @@ less_semaphore (struct list_elem *s1, struct list_elem *s2, void *aux)
 }
 
 
-// get the thread with the highest priority thread from ready queue
-// also delete this elem from the ready queue
+/* Get the thread with the highest priority thread from ready list.
+   It also delete this elem from the ready queue. */
 
 static struct semaphore *
 pop_most_priority_sema_sema_queue (struct list *list)
 {
   ASSERT(!list_empty (list));
-  struct list_elem *maxElem = list_max(list, less_semaphore, 0);
+  struct list_elem *maxElem = list_max(list, less_semaphore, NULL);
   list_remove(maxElem);
   return (&list_entry(maxElem, struct semaphore_elem, elem)->semaphore);
 }

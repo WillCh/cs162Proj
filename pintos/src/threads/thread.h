@@ -91,8 +91,8 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-    struct list_elem sleepelem;         // ADD BY HAOYU, the list node on sleep queue
-    int64_t sleep_ticks;                    // ADD BY HAOYU, the rest of sleep time if the thread is sleeping
+    struct list_elem sleepelem;         /* List element for sleep list. */
+    int64_t sleep_ticks;                /* The rest of sleep time for this thread. */
     int original_priority;              // ADDED BY HUGH, the original priority of a given thread
     struct list donorlist;              // ADDED BY HUGH, list of this thread's donors
     struct list_elem donorelem;         // ADDED BY HUGH, list element for the donor list
@@ -146,7 +146,6 @@ void thread_foreach (thread_action_func *, void *);
 void thread_wake_up_sleep_threads (void);
 void thread_put_to_sleep_queue (void); 
 
-//ADDED
 void thread_wake_up_sleep_threads (void);
 void thread_put_to_sleep_queue (void);
 
@@ -174,7 +173,7 @@ void thread_update_all_priority(void);
 int thread_mlfqs_priority (struct thread * t);
 void thread_mlfqs_priority_lists_init(void);
 
-bool less_thread (struct list_elem *e1, struct list_elem *e2, void *aux);
+bool thread_less (const struct list_elem *e1, const struct list_elem *e2, void* aux);
 
 void thread_debug_print_mlfqs_queue (void);
 #endif /* threads/thread.h */

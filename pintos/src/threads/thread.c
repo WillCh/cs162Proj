@@ -37,7 +37,8 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
-// List Added by Haoyu
+/* List which hold all the sleep process. Processes are added to
+   this list when they are called sleep. */
 static struct list sleep_list;
 
 /* Idle thread. */
@@ -86,7 +87,6 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-static struct thread *peek_most_priority_thread (void);
 
   void
 thread_set_init_state(void)
@@ -324,10 +324,6 @@ thread_unblock (struct thread *t)
 
   //advanced
   if (thread_mlfqs) {
-      if (t->mlfqsPriority < 0 || t->mlfqsPriority > 63){
-        int x = 100;
-        printf("WTF\n"); 
-      }
     list_push_back (&priorityLists[t->mlfqsPriority], &t->mlfqs_elem);
   } else {
     list_push_back (&ready_list, &t->elem);
@@ -391,17 +387,6 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
-void
-thread_debug_print_mlfqs_queue (void) {
-      printf("----------------------\n");
-        int i = 0;
-          for (i = 0; i < 64; ++i) {
-                  printf("the %d queue, has %zu threads\n", i, list_size(&priorityLists[i]));
-                    }
-            printf("---------------------\n");
-}
-
-
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
   void
@@ -416,11 +401,6 @@ thread_yield (void)
   //advanced
   if (cur != idle_thread) {
     if (thread_mlfqs) {
-      if (cur->mlfqsPriority < 0 || cur->mlfqsPriority > 63){
-        int x = 100;
-        x++;
-        printf("WTF\n");
-      }
       list_push_back (&priorityLists[cur->mlfqsPriority], &cur->mlfqs_elem);
     } else {
       list_push_back (&ready_list, &cur->elem);
@@ -449,20 +429,24 @@ thread_foreach (thread_action_func *func, void *aux)
   }
 }
 
+/* When call this function, we will find the threads
+   who should wake up at this time from the sleep_list,
+   and put them back on the ready_list. */
   void
 thread_wake_up_sleep_threads (void)
 {
   struct list_elem *e;
-
   ASSERT (intr_get_level () == INTR_OFF);
   e = list_begin (&sleep_list);
+
+  /* Iterate througth the sleep_list to decrease the 
+     sleep time of each thread, and wake up the one whose
+     sleep time is zero.*/
   while (e != list_end (&sleep_list)) {
     struct thread *t = list_entry (e, struct thread, sleepelem);
     t->sleep_ticks--;
     if (t->sleep_ticks == 0) {
-      // remove it from the sleep_list
       e = list_remove(e);
-      // unblock the thread
       thread_unblock(t);
     } else {
       e = list_next(e);
@@ -470,6 +454,8 @@ thread_wake_up_sleep_threads (void)
   }
 }
 
+/* Function to put the current thread on to the 
+   sleep_list. */
   void
 thread_put_to_sleep_queue (void) 
 {
@@ -611,14 +597,9 @@ void thread_update_all_priority(void){
       e = list_next (e))
   {
     struct thread * t = list_entry(e, struct thread, allelem);
-    int old_mlfqs_priority = t->mlfqsPriority;
     t->mlfqsPriority = thread_mlfqs_priority(t);
     //advanced
     if (t->status == THREAD_READY) {
-      if (t->mlfqsPriority < 0 || t->mlfqsPriority > 63){
-        int x = 100;
-        printf("WTF\n");
-      }
       list_push_back(&priorityLists[t->mlfqsPriority], &t->mlfqs_elem);
     }
   }
@@ -740,36 +721,23 @@ alloc_frame (struct thread *t, size_t size)
 }
 
 
-// ADD BY HAOYU
-// a function to compare the two thread
+/* Function to compare the priority of two threads,
+   it returns e1's priority < e2's priority */
   bool
-less_thread (struct list_elem *e1, struct list_elem *e2, void *aux)
+thread_less (const struct list_elem *e1, const struct list_elem *e2, void* aux)
 {
   return ((list_entry(e1, struct thread, elem)->priority)
       < (list_entry(e2, struct thread, elem)->priority));
 }
 
-// get the thread with the highest priority thread from ready queue
-// also delete this elem from the ready queue
+/* Get the thread with the highest priority thread from ready queue
+   also delete this elem from the ready queue. */
   static struct thread *
 pop_most_priority_thread (void)
 {
   ASSERT(!list_empty (&ready_list));
-  struct list_elem *maxElem = list_max(&ready_list, less_thread, 0);
-  // for debug
-  // printf("the highest prior is %d \n", list_entry(maxElem, struct thread, elem)->tid);
+  struct list_elem *maxElem = list_max(&ready_list, thread_less, NULL);
   list_remove(maxElem);
-  return list_entry(maxElem, struct thread, elem);
-}
-
-
-// get the thread with the highest priority thread from ready queue
-// NOT delete this elem from the ready queue
-  static struct thread *
-peek_most_priority_thread (void)
-{
-  ASSERT(!list_empty (&ready_list));
-  struct list_elem *maxElem = list_max(&ready_list, less_thread, 0);
   return list_entry(maxElem, struct thread, elem);
 }
 
@@ -797,11 +765,10 @@ next_thread_to_run (void)
     else{
       return pop_most_priority_thread();
     }
-    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
   }
 }
 
-// ADDED by Hugh to check if element in list
+/* Check if element is in the list. */
 struct list_elem *
 thread_list_find (struct list *list, struct list_elem *element)
 {
