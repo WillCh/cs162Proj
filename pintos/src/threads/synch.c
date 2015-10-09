@@ -258,8 +258,15 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  // ADDED by Hugh v
-  // List might be empty
+  update_donor_list(lock);
+
+  lock->holder = NULL;
+  sema_up (&lock->semaphore);
+}
+
+void 
+update_donor_list (struct lock *lock)
+{
   enum intr_level old_level;
   old_level = intr_disable ();
 
@@ -293,10 +300,6 @@ lock_release (struct lock *lock)
       cur->priority = max_priority;
   }
   intr_set_level (old_level);
-  // ADDED by Hugh ^
-
-  lock->holder = NULL;
-  sema_up (&lock->semaphore);
 }
 
 /* Returns true if the current thread holds LOCK, false

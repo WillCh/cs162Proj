@@ -41,9 +41,9 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
-// ADDED by Hugh -> recursive donate function
+// ADDED by Hugh
 void donate_to (struct thread *, struct thread *);
-
+void update_donor_list (struct lock *);
 
 /* Optimization barrier.
 
