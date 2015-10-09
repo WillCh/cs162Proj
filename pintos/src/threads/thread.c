@@ -387,6 +387,16 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
+void
+thread_debug_print_mlfqs_queue (void) {
+      printf("----------------------\n");
+        int i = 0;
+          for (i = 0; i < 64; ++i) {
+                  printf("the %d queue, has %zu threads\n", i, list_size(&priorityLists[i]));
+                    }
+            printf("---------------------\n");
+}
+
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
@@ -402,6 +412,10 @@ thread_yield (void)
   //advanced
   if (cur != idle_thread) {
     if (thread_mlfqs) {
+      if (cur->mlfqsPriority < 0 || cur->mlfqsPriority > 63){
+        int x = 100;
+        x++;
+      }
       list_push_back (&priorityLists[cur->mlfqsPriority], &cur->mlfqs_elem);
     } else {
       list_push_back (&ready_list, &cur->elem);
@@ -476,6 +490,9 @@ thread_set_priority (int new_priority)
   int
 thread_get_priority (void) 
 {
+  if (thread_mlfqs){
+    return thread_current()->mlfqsPriority;
+  }
   return thread_current ()->priority;
 }
 

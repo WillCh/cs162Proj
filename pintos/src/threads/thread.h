@@ -170,4 +170,6 @@ int thread_mlfqs_priority (struct thread * t);
 void thread_mlfqs_priority_lists_init(void);
 
 bool less_thread (struct list_elem *e1, struct list_elem *e2, void *aux);
+
+void thread_debug_print_mlfqs_queue (void);
 #endif /* threads/thread.h */
