@@ -129,7 +129,7 @@ test_mlfqs_recent_1 (void)
       int elapsed = timer_elapsed (start_time);
       if (elapsed % (TIMER_FREQ * 2) == 0 && elapsed > last_elapsed) 
         {
-          thread_debug_print_mlfqs_queue ();
+          //thread_debug_print_mlfqs_queue ();
           int recent_cpu = thread_get_recent_cpu ();
           int load_avg = thread_get_load_avg ();
           int elapsed_seconds = elapsed / TIMER_FREQ;

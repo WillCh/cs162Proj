@@ -165,7 +165,10 @@ thread_mlfqs_priority (struct thread * t)
   // printf("nice: %i\n", fix_round(nice));
   // printf("p: %i\n", fix_round(p));
   // printf("recent_cpu: %i\n", fix_round(t->recent_cpu));
-  return fix_trunc(p);
+  int res = fix_trunc(p);
+  if (res < 0) return 0;
+  if (res > 63) return 63;
+  return res;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -324,6 +327,10 @@ thread_unblock (struct thread *t)
 
   //advanced
   if (thread_mlfqs) {
+      if (t->mlfqsPriority < 0 || t->mlfqsPriority > 63){
+        int x = 100;
+        printf("WTF\n"); 
+      }
     list_push_back (&priorityLists[t->mlfqsPriority], &t->mlfqs_elem);
   } else {
     list_push_back (&ready_list, &t->elem);
@@ -415,6 +422,7 @@ thread_yield (void)
       if (cur->mlfqsPriority < 0 || cur->mlfqsPriority > 63){
         int x = 100;
         x++;
+        printf("WTF\n");
       }
       list_push_back (&priorityLists[cur->mlfqsPriority], &cur->mlfqs_elem);
     } else {
@@ -617,6 +625,10 @@ void thread_update_all_priority(void){
     t->mlfqsPriority = thread_mlfqs_priority(t);
     //advanced
     if (t->status == THREAD_READY) {
+      if (t->mlfqsPriority < 0 || t->mlfqsPriority > 63){
+        int x = 100;
+        printf("WTF\n");
+      }
       list_push_back(&priorityLists[t->mlfqsPriority], &t->mlfqs_elem);
     }
   }
