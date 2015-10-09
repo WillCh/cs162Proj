@@ -517,6 +517,8 @@ thread_set_nice (int nice)
   fixed_point_t two = fix_int(2);
   fixed_point_t fix_nice = fix_int(t->nice);
 
+  thread_update_load_avg();
+
   t->recent_cpu = fix_add(fix_mul(fix_div(fix_mul(two, load_avg), fix_add(fix_mul(two, load_avg), one)), t->recent_cpu),fix_nice);
 
   t->mlfqsPriority = thread_mlfqs_priority(t);

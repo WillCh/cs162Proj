@@ -188,13 +188,13 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
 
-  thread_update_current_thread_recent_cpu();
 
   if (ticks % TIMER_FREQ == 0){
       thread_update_load_avg();
       thread_update_all_recent_cpu();
   }
 
+  thread_update_current_thread_recent_cpu();
   if (ticks % 4 == 0){
      thread_update_all_priority();
   }
