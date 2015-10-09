@@ -89,24 +89,26 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  // int64_t start = timer_ticks ();
+  //int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-  // printf("inside sleep, the sleep time is: %lld\n", ticks);
+  //ADDED
   if (ticks > 0) {
     thread_current()->sleep_ticks = ticks;
-    // Block the threads by disabling the interrpt
-    // in this block, we will block the thread, and put the thread into the sleep queue
+    // Disable interrupt to block threads
+
     enum intr_level orig_level = intr_disable();
     // put the thread into the sleeping queue
     thread_put_to_sleep_queue();
     thread_block();
-    // recover the interrupt
+    //recover the original interrupt level
     intr_set_level(orig_level);
   }
+
   /**
   while (timer_elapsed (start) < ticks) 
-    thread_yield ();**/
+    thread_yield ();
+  **/
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -179,13 +181,25 @@ timer_print_stats (void)
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+
+
+  if (ticks % TIMER_FREQ == 0){
+      thread_update_load_avg();
+      thread_update_all_recent_cpu();
+  }
+
+  thread_update_current_thread_recent_cpu();
+  if (ticks % 4 == 0){
+     thread_update_all_priority();
+  }
   thread_tick ();
-  // check the sleep queue
+  // check the sleep queue at every tick
   thread_wake_up_sleep_threads();
 }
 
@@ -259,3 +273,4 @@ real_time_delay (int64_t num, int32_t denom)
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
 }
+

@@ -101,15 +101,14 @@ sema_try_down (struct semaphore *sema)
   return success;
 }
 
-// get the thread with the highest priority thread from ready queue
-// also delete this elem from the ready queue
+//ADDED
+//get the thread with the highest priority thraed from ready queue
 static struct thread *
 pop_most_priority_thread_sema_queue (struct list *list)
 {
   ASSERT(!list_empty (list));
   struct list_elem *maxElem = list_max(list, less_thread, 0);
-  // for debug
-  // printf("the highest prior is %d \n", list_entry(maxElem, struct thread, elem)->tid);
+
   list_remove(maxElem);
   return list_entry(maxElem, struct thread, elem);
 }
@@ -128,13 +127,12 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) 
-    // TODO: pop the highest priority thread
-    thread_unblock(pop_most_priority_thread_sema_queue(&(sema->waiters)));
-    // thread_unblock (list_entry (list_pop_front (&sema->waiters),
+    thread_unblock (pop_most_priority_thread_sema_queue(&(sema->waiters)));
+    //thread_unblock (list_entry (list_pop_front (&sema->waiters),
     //                            struct thread, elem));
   sema->value++;
   intr_set_level (old_level);
-  // TODO: need to yield();
+  //ADDED
   thread_yield ();
 }
 
@@ -215,7 +213,6 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  // ADDED by Hugh
   struct thread *cur = thread_current ();
   struct semaphore *sema = &lock->semaphore;
   old_level = intr_disable ();
@@ -228,10 +225,6 @@ lock_acquire (struct lock *lock)
   }
   intr_set_level (old_level);
   lock->holder = cur;
-
-  // Old code:
-  // sema_down (&lock->semaphore);
-  // lock->holder = thread_current ();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -418,15 +411,15 @@ less_semaphore (struct list_elem *s1, struct list_elem *s2, void *aux)
   return (t1->priority < t2->priority);
 }
 
+
 // get the thread with the highest priority thread from ready queue
 // also delete this elem from the ready queue
+
 static struct semaphore *
 pop_most_priority_sema_sema_queue (struct list *list)
 {
   ASSERT(!list_empty (list));
   struct list_elem *maxElem = list_max(list, less_semaphore, 0);
-  // for debug
-  // printf("the highest prior is %d \n", list_entry(maxElem, struct thread, elem)->tid);
   list_remove(maxElem);
   return (&list_entry(maxElem, struct semaphore_elem, elem)->semaphore);
 }
@@ -446,10 +439,10 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
-  // TODO: should output the highest priroty of semaphore
-  if (!list_empty (&cond->waiters))
+  //ADDED investigate
+  if (!list_empty (&cond->waiters)) 
     sema_up (pop_most_priority_sema_sema_queue(&cond->waiters));
-    // sema_up (&list_entry (list_pop_front (&cond->waiters),
+    //sema_up (&list_entry (list_pop_front (&cond->waiters),
     //                      struct semaphore_elem, elem)->semaphore);
 }
 

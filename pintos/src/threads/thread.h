@@ -97,8 +97,15 @@ struct thread
     struct list donorlist;              // ADDED BY HUGH, list of this thread's donors
     struct list_elem donorelem;         // ADDED BY HUGH, list element for the donor list
     struct lock *waitlock;              // ADDED BY HUGH, the lock the thread is waiting on, if any
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+    /* ADDED FOR ADVANCED SCHEDULER. */
+    int nice;
+    fixed_point_t recent_cpu;
+    int mlfqsPriority;
+    struct list_elem mlfqs_elem;              /* mlfqs priority list element. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -139,6 +146,10 @@ void thread_foreach (thread_action_func *, void *);
 void thread_wake_up_sleep_threads (void);
 void thread_put_to_sleep_queue (void); 
 
+//ADDED
+void thread_wake_up_sleep_threads (void);
+void thread_put_to_sleep_queue (void);
+
 int thread_get_priority (void);
 void thread_set_priority (int);
 
@@ -147,11 +158,23 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+
 void thread_set_init_state(void);
 void thread_exit_init_state(void);
 
 // ADDED by Hugh to find an element in a list.  NULL if not in the list.
 struct list_elem *thread_list_find (struct list *, struct list_elem *);
 
+void thread_update_load_avg(void);
+void thread_update_current_thread_recent_cpu(void);
+void thread_update_all_recent_cpu(void);
+void thread_update_all_priority(void);
+
+//advanced
+int thread_mlfqs_priority (struct thread * t);
+void thread_mlfqs_priority_lists_init(void);
+
 bool less_thread (struct list_elem *e1, struct list_elem *e2, void *aux);
+
+void thread_debug_print_mlfqs_queue (void);
 #endif /* threads/thread.h */
