@@ -157,10 +157,6 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-
-void thread_set_init_state(void);
-void thread_exit_init_state(void);
-
 // ADDED by Hugh to find an element in a list.  NULL if not in the list.
 struct list_elem *thread_list_find (struct list *, struct list_elem *);
 
@@ -174,6 +170,6 @@ int thread_mlfqs_priority (struct thread * t);
 void thread_mlfqs_priority_lists_init(void);
 
 bool thread_less (const struct list_elem *e1, const struct list_elem *e2, void* aux);
-
+bool thread_less_donor (const struct list_elem *e1, const struct list_elem *e2, void* aux);
 void thread_debug_print_mlfqs_queue (void);
 #endif /* threads/thread.h */

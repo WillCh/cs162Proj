@@ -89,12 +89,6 @@ void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
   void
-thread_set_init_state(void)
-{
-  is_init = true;
-}
-
-  void
 thread_mlfqs_priority_lists_init(void)
 {
   // init priority list used by advanced scheduler
@@ -105,11 +99,6 @@ thread_mlfqs_priority_lists_init(void)
   }
 }
 
-  void
-thread_exit_init_state(void)
-{
-  is_init = false;
-}
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -584,7 +573,8 @@ void thread_update_all_recent_cpu(void){
     fixed_point_t two = fix_int(2);
     fixed_point_t nice = fix_int(t->nice);
 
-    t->recent_cpu = fix_add(fix_mul(fix_div(fix_mul(two, load_avg), fix_add(fix_mul(two, load_avg), one)), t->recent_cpu), nice);
+    t->recent_cpu = fix_add(fix_mul(fix_div(fix_mul(two, load_avg), \
+      fix_add(fix_mul(two, load_avg), one)), t->recent_cpu), nice);
   }
 }
 
@@ -728,6 +718,13 @@ thread_less (const struct list_elem *e1, const struct list_elem *e2, void* aux)
 {
   return ((list_entry(e1, struct thread, elem)->priority)
       < (list_entry(e2, struct thread, elem)->priority));
+}
+  
+  bool
+thread_less_donor (const struct list_elem *e1, const struct list_elem *e2, void* aux)
+{
+  return ((list_entry(e1, struct thread, donorelem)->priority)
+      < (list_entry(e2, struct thread, donorelem)->priority));
 }
 
 /* Get the thread with the highest priority thread from ready queue

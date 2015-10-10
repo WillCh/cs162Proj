@@ -329,22 +329,11 @@ donate_to (struct thread *donee, struct thread *donor) {
   struct list_elem *e;
   int max_priority = 0;
 
-  if (!list_empty (dlist)) {
-    e = list_begin (dlist);
-    // Go until the tail sentinel
-    while (e != list_end (dlist))
-    {
-      struct thread *curr_donor = list_entry (e, struct thread, donorelem);
-      if (curr_donor->priority > max_priority)
-        max_priority = curr_donor->priority;
-      e = list_next (e);
-    }
+  if (!list_empty(dlist)) {
+    struct list_elem *maxElem = list_max(dlist, thread_less_donor, NULL);
+    max_priority = (list_entry (maxElem, struct thread, donorelem))->priority;
   }
-  //ASK HUGH
-  // if (!list_empty(dlist)) {
-  //   struct list_elem *maxElem = list_max(dlist, thread_less, NULL);
-  //   max_priority = (list_entry (maxElem, struct thread, donorelem))->priority;
-  // }
+  
   // If you need to update, do it, and check recursively
   if (donee->priority < max_priority)
   {
