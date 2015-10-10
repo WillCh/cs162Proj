@@ -243,7 +243,7 @@ thread_create (const char *name, int priority,
   tid = t->tid = allocate_tid ();
 
   /* Inherit nice and recent_cpu from parent thread. */
-   t->nice = thread_current()->nice;
+  t->nice = thread_current()->nice;
   t->recent_cpu = thread_current()->recent_cpu;
   t->mlfqsPriority = thread_mlfqs_priority(t);
 
