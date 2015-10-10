@@ -589,7 +589,6 @@ thread_update_all_priority(void){
   {
     struct thread * t = list_entry(e, struct thread, allelem);
     t->mlfqsPriority = thread_mlfqs_priority(t);
-    //advanced
     if (t->status == THREAD_READY) {
       list_push_back(&priorityLists[t->mlfqsPriority], &t->mlfqs_elem);
     }

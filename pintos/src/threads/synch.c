@@ -272,7 +272,7 @@ update_donor_list (struct lock *lock)
   struct list_elem *e;
   int max_priority = 0;
 
-  // If list isn't empty, go through an remove as necessary
+  /* If list isn't empty, go through an remove as necessary */
   if (!list_empty (dlist))
   {
     e = list_begin (dlist);
@@ -280,7 +280,7 @@ update_donor_list (struct lock *lock)
     {
       struct thread *curr_thread = list_entry (e, struct thread, donorelem);
       struct list_elem *next_e = list_next (e);
-      // Either remove or update the priority
+      /* Either remove or update the priority */
       if (curr_thread->waitlock == lock)
       {
         list_remove (e);
@@ -290,7 +290,7 @@ update_donor_list (struct lock *lock)
       e = next_e;
     }
 
-    // To update to the max of our donors
+    /* To update to the max of our donors */
     if (list_empty (dlist))
       cur->priority = cur->original_priority;
     else if (cur->original_priority < max_priority)
@@ -325,7 +325,7 @@ donate_to (struct thread *donee, struct thread *donor) {
   if (list_empty(dlist) || thread_list_find(dlist, &donor->donorelem) == NULL)
     list_push_back(dlist, &donor->donorelem);
 
-  // Find max priority
+  /* Find max priority */
   int max_priority = 0;
 
   if (!list_empty(dlist)) {
@@ -333,7 +333,7 @@ donate_to (struct thread *donee, struct thread *donor) {
     max_priority = (list_entry (maxElem, struct thread, donorelem))->priority;
   }
   
-  // If you need to update, do it, and check recursively
+  /* If you need to update, do it, and check recursively */
   if (donee->priority < max_priority)
   {
     donee->priority = max_priority;
