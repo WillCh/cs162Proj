@@ -322,9 +322,7 @@ struct semaphore_elem
 void
 donate_to (struct thread *donee, struct thread *donor) {
   struct list *dlist = &donee->donorlist;
-  if (list_empty(dlist))
-    list_push_back(dlist, &donor->donorelem);    
-  else if (thread_list_find(dlist, &donor->donorelem) == NULL)
+  if (list_empty(dlist) || thread_list_find(dlist, &donor->donorelem) == NULL)
     list_push_back(dlist, &donor->donorelem);
 
   // Find max priority
@@ -342,7 +340,11 @@ donate_to (struct thread *donee, struct thread *donor) {
       e = list_next (e);
     }
   }
-
+  //ASK HUGH
+  // if (!list_empty(dlist)) {
+  //   struct list_elem *maxElem = list_max(dlist, thread_less, NULL);
+  //   max_priority = (list_entry (maxElem, struct thread, donorelem))->priority;
+  // }
   // If you need to update, do it, and check recursively
   if (donee->priority < max_priority)
   {
