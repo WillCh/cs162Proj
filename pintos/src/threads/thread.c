@@ -72,10 +72,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-
-// add one static variable to indicate whether it's the initi or not, it's extern
-static bool is_init;
-
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -269,7 +265,6 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  //ADD IS_INIT
   if (t->priority > thread_current ()->priority) {
     thread_yield();
   }

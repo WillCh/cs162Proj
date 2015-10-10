@@ -318,7 +318,7 @@ struct semaphore_elem
   };
 
 
-// ADDED by Hugh to donate recursively - has to find max priority
+/* Donate recursively - has to find max priority */
 void
 donate_to (struct thread *donee, struct thread *donor) {
   struct list *dlist = &donee->donorlist;
@@ -326,7 +326,6 @@ donate_to (struct thread *donee, struct thread *donor) {
     list_push_back(dlist, &donor->donorelem);
 
   // Find max priority
-  struct list_elem *e;
   int max_priority = 0;
 
   if (!list_empty(dlist)) {
@@ -430,11 +429,8 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
-  //ADDED investigate
   if (!list_empty (&cond->waiters)) 
     sema_up (pop_most_priority_sema_sema_queue(&cond->waiters));
-    //sema_up (&list_entry (list_pop_front (&cond->waiters),
-    //                      struct semaphore_elem, elem)->semaphore);
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
