@@ -1,0 +1,50 @@
+Final report of CS 162 project 1
+Authors:
+Chonghao Huang <crhuang@berkeley.edu>
+Hugh Chen <hugh.chen1@gmail.com>
+Jason Runyu Zhang <runyuzhang@berkeley.edu>
+Haoyu Chen <haoyuchen@berkeley.edu>
+
+1 Alarm clock
+1.1 Summary of Work
+The basic idea of alarm clock is to add a sleep list, which records the threads that are sleeping. On each thread, there is a time tick to record the remaining sleep time, and a sleep element, who acts like list node in the waiting list.
+
+Thus, if a thread calls sleep (), we will put this thread to the sleep list, and block it (thereby switching to the next thread). At each timer_interrupt, we will go through our waiting list to diminish the remaining sleep time ticks by 1, if any thread on this list has zero remaining sleep time, we will unblock it, and reschedule it. 
+
+1.2 Changes from Initial Design
+Since all the threads have to share the sleep list data, initially we want to use lock to make the operation safe. However, when we implement it, we find it’s much better just ensure the interrupt is off during modifying the sleep list. 
+
+1.3 Potential Improvements
+We record the remaining sleep time for the sleep threads. But it requires to decrease the sleep time at each time interrupt. It would be better to record the wake-up time for each sleep thread, and keep the sleep list in order, which will improve the efficiency to wake up threads.
+
+2 Priority Donation
+2.1 Summary
+The priority donation is a technique used to supplement basic priority scheduling.  Every time that a thread acquires a lock, it attempts to donate the priority to the initial holder of the lock.  To implement this we add additional state to the threads to support: a list of donors, the original priority, and the lock the thread is holding (if any).
+
+In order to maintain donation, we simply had to modify three functions: lock_acquire, lock_release, and thread_set_priority.  In addition, we added a donate_to function which donates recursively.  The bulk of the work is in maintaining the state we added in order to enable donation in all edge cases.
+
+2.2 Changes from the Initial Design
+Originally our idea was overly simplistic.  We attempted to simply add state to represent the current donee and update the priority.  Overall, we made a drastic change to keep track of all donors in order to properly manage the state.
+
+2.3 Potential Improvements
+In terms of improvements, it is possible that we could achieve gains in performance through using a priority queue that is implemented with a binary heap.  There are other potential improvements that could be achieved with other data structure trade-offs.  An augmented data structure could potentially exploit the benefits of these different data structures.
+
+3. Advanced scheduler
+3.1 Summary
+We followed closely to the design given in the specs. We have an array of 64 lists as a static variable, each corresponding to a priority, to model the multilevel ready queues. Threads are added to the ready queue that corresponds to its truncated priority calculated using the formula detailed in the specs. For example, a thread with a priority 15 would be appended to priorityLists[15]. 
+
+For calculating the priority, we added several fields to the thread struct, to keep track of the recent cpu, nice value, priority value used for the multilevel feedback queue list. We also have a static variable load_avg shared by all threads. These variables are updated at the correct ticks specified in the spec. 
+
+3.2 Changes from initial Design
+In order to ensure that the priority calculated using the formula is within 0-63, inclusive, we “clamped” the values within this range, meaning if it is less than 0, we make it 0. Similarly, if it is greater than 63, we make the priority 63.
+
+3.3 Potential Improvements
+When we update the priority of all the ready threads, we iterate through the all_list to recompute the priority. However, we can improve the efficiency by only iterating through the 64 ready lists. 
+
+4 Reflection of Workload
+In this project, we work together to implement and debug for all parts. But each group member is charge of one part as the main contributor/organizer.
+Haoyu Chen: alarm clock, and scheduler in semaphore and conditioner. 
+Hugh Chen: Priority Donation
+Jason Zhang and Chonghao Huang: Advanced Scheduler
+
+
