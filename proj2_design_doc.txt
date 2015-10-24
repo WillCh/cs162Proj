@@ -1,0 +1,137 @@
+CS 162
+Project 2: User Programs
+Design Document
+
+
+Fill in the following information:
+
+
+GSI: Aleks
+Group Number: 35
+Haoyu Chen <haoyuchen@berkeley.edu>
+Jason Zhang <runyuzhang@berkeley.edu>
+Chonghao Huang <crhuang@berkeley.edu>
+Hugh Chen <hugh.chen1@gmail.com>
+
+
+Preliminary Questions
+=====================
+
+1)  Please write down any miscellaneous comments or notes for your GSI.
+
+
+
+2)  Currently, process_wait tries to decrement a semaphore called temporary.  Explain why this implementation of process_wait wouldn’t work if the exec system call were implemented.
+
+This wouldn’t work because the child process is not guaranteed to call process exit and sema_up the temporary semaphore.  In this case, the waiting process will forever wait for the temporary semaphore.  
+
+Another problem is that we don’t currently utilize the process id, so if we had a parent waiting for a particular child, it will call sema_down, but if any of its children call sema_up, it will wake up the parent because the temporary variable is the same across all children.
+
+3)  For checkpoint 1, you are implementing a dummy version of write that prints to stdout.  Describe, in two sentences or less, how a user could break the operating system exploiting this dummy version.
+
+In the kernel, we only check the buffer pointer passed, but if the size is big enough, and we’re trusting enough we may end up printing some of kernel memory into stdout.
+
+4)  Briefly describe how the syscall interface works.  How does the operating system obtain the syscall arguments passed from userspace?
+
+The syscall interface is defined in lib/user/syscall.h, and can be used by user program to invoke syscalls.  After the user invokes a syscall with arguments, the arguments in reverse order and the syscall number are pushed onto the stack. Then, int $0x30 is invoked to make a syscall, and is picked up by syscall_handler defined in userprog/syscall.h, which has access to the intr_frame defined on kernel stack. Since struct intr_frame has esp as one of its fields, it is able to access the arguments and syscall number which are previously stored on user stack, and process the syscall accordingly. After syscall handler finishes with processing the syscall, the return value, if any, is stored in the eax field in intr_frame, and subsequently returns to the caller function, after the user stack pointer is recovered. 
+
+5)  In filesys.c, you’ll see various filesystem functions that work on struct file objects.  In all modern operating systems, these filesystems operations are abstracted away from userspace code; why would it be a bad idea to expose these operations to users?
+
+These filesystem functions don’t do parameter checking. Invalid parameters could result in accessing files that the user has no access to.
+
+6)  Run pintos --gdb -v -k --qemu --filesys-size=2 -p tests/userprog/iloveos -a iloveos -- -q -f run iloveos, and use GDB to print the address of the priority field of idle thread.  Do this again; does the address of the priority field change?  We expect you to be able to use GDB comfortably throughout this project; if you’re struggling with this, we strongly encourage you to come to office hours.
+
+0x1C, doesn’t change
+
+Process Syscalls
+================
+
+7)  Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration for implementing halt, exec, exit, and wait.  Briefly identify the purpose of each.
+
+
+** How do we make this separate from the threads?  Malloc
+
+struct wait_status {
+struct list_elem elem; /* ‘children’ list element. */ 
+struct lock lock; /* Protects ref_cnt. */ 
+int ref_cnt; /* 2=child and parent both alive, 1=either child or parent alive, 0=child and parent both dead. */ 
+tid_t tid; /* Child thread id. */ 
+int exit_code; /* Child exit code, if dead. */ 
+struct semaphore dead; /* 1=child alive, 0=child dead. */
+}
+
+struct thread {
+	struct wait_status t_wait_status;
+	list children;
+}
+
+8)  Briefly describe your planned implementation of the "wait" system call and how it interacts with process termination.
+
+For the “wait” system call, we will create a wait struct to take care of both synchronization and mutual exclusion.  This wait struct  will reside externally to the threads on the heap memory, so that we can keep it alive if either parent or child is alive.  Each parent will have a list of pointers to the wait structures, each corresponding to a child thread. Each child thread would obtain the pointer to the wait structure during thread_create by calling thread_current() to get the pointer to the parent thread struct. Each wait structure holds the tid of the child, which is used to identify the correct child process to wait on, as well as a semaphore for the parent process to sleep on.  After the child calls sema up (likely due to process termination through a call to exit), the exit code would be stored in the wait structure. the parent will wake up and the exit code of the process will be returned from inside the wait struct.  We will know to destroy the wait struct when the parent is done waiting and the child has terminated.  This will be done by decrementing the ref_cnt whenever either event occurs.
+
+9)  The "exec" system call returns -1 if loading the new executable fails, so it cannot return before the new executable has completed loading.  How will your code ensure this?  How will the load success/failure status be passed back to the thread that calls "exec"?
+
+We will use the the process_execute to create a new process. We use the same wait_status to keep track of the load process of the child. This new process will load the exec file. Once it finishes loading, it will signal the parent to wake up on the semaphore. If the child process fails to load exec returns -1 to the parent.
+
+10)  Consider parent process P with child process C.  How do you ensure proper synchronization and avoid race conditions when P calls wait(C) before C exits?  After C exits?  How do you ensure that all resources are freed in each case?  How about when P terminates without waiting, before C exits?  After C exits?  Are there any special cases?
+
+We make sure that we lock whenever we change the ref_cnt, because it’s the only shared field that both may access at around the same time, besides the semaphore.  This way the state of the ref_cnt will always be correct.  We don’t have to worry about the semaphore, because sema_up and sema_down are atomic.
+
+We ensure that all resources are freed by freeing everything whenever ref_cnt becomes zero.  This means that either the child or the parent may end up freeing the shared data structure.
+
+**Special cases**
+Special cases are if either one fails to call exit, and ends up terminating in a different way.  So far it seems like the special case is only if it causes an exception, so we may have to free in these cases was well.  One possible solution is to use the timer interrupt to routinely check if it should clean up the wait structs in the event that an unexpected termination occurs.
+
+11)  How are you planning to implement reading/writing user memory from the kernel and why did you decide to implement it in this way? 
+
+We plan to use the 1st method in the suggestion to do this, i.e. we will verify the validity of a user-provided pointer. Since, we plan to check all the space from the buffer to the buffer + size, we plan to use a for loop start from buffer to buffer + size by 4KB to check the validity of these addresses. The reason why we don’t just check the start and end address is because there might be invalid pages in between. Then if they are all valid, we can perform the write/read.
+
+Argument Passing
+================
+
+12)  Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration for argument passing.  Briefly identify the purpose of each.  
+
+
+list param; // defined in start_process
+we use a list to hold all the parameters pass with the file_name inside the body of the start_process function.
+
+13)  Briefly describe your planned implementation for argument parsing.  How do you arrange for the elements of argv[] to be in the right order?  How do you avoid overflowing the stack page?
+
+In the start_process(), we plan to parse the file_name into the real_file_name and a list of params. Then inside the load(), after setup_stack(), we check the size of the params to ensure that the size of argvs would not overflowing the stack page, and push the argv on to the stack.
+
+File Operation Syscalls
+=======================
+
+
+14)  Copy here the declaration of each new or changed `struct' or `struct' member, global or static variable, `typedef', or enumeration for the file operation syscalls.  Identify the purpose of each in 25 words or less.  
+
+list file_list; // Some global variable to keep track of all open files
+
+
+struct fd_pair {
+	struct file* f;
+	int fd;
+	list_elem fd_elem;
+} // Designed to map the file descriptors to the file structs
+
+struct file {
+	lock file_lock;
+} // Mutual exclusion
+
+15)  Describe how file descriptors are associated with open files in your design.  Are file descriptors unique within the entire OS or just within a single process?
+
+File descriptors are associated with the relevant file structs.  The way we do this is through a linked list that keeps track of all the currently open file descriptors.  If a file is closed, we remove the file descriptor from the linked list.  
+
+The descriptors should be unique within the entire OS because the kernel itself is keeping track of the mappings, so unless we implement segmentation on the user’s file descriptors, all descriptors (including the user descriptors) represent their absolute value in the system.  We’ll implement this with a global file descriptor counter that represents the current int we are allowed to assign as a descriptor.
+
+16)  What advantages or disadvantages can you see to your design for file descriptors?
+
+
+Advantages: Easy to implement. 
+
+Disadvantages: Won’t re-use old file descriptors that were cleared, so overflow could be a problem.  If there was a fork, then it would have to be unique per-process, but because memory cannot be copied, have a unique system wide file descriptor is fine.
+
+17)  Suppose a system call causes a full page (4,096 bytes) of data to be copied from user space into the kernel.  What is the least and the greatest possible number of inspections of the page table (e.g. calls to pagedir_get_page()) that might result?  What about for a system call that only copies 2 bytes of data?
+
+For both a full page and two bytes, the min number of call is 1, and the max number of call is 2. 
+
