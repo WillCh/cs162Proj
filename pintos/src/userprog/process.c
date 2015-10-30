@@ -239,6 +239,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
        default_num_param * sizeof(char*));
     }
   }
+  // debug
+  //int iter = 0;
+  //for (iter = 0; iter < count; iter++) {
+  //  printf("%s\n", param_array[iter]);
+  //}
   /* end of inserting */
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -247,7 +252,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  //file = filesys_open (file_name);
+  // I changed
+  file = filesys_open (param_array[0]);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
