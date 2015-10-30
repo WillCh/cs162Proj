@@ -200,11 +200,12 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, char **argv, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
+
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -220,6 +221,25 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+  /* parse the input argments */
+  /* add by HYC */
+  int default_num_param = 100, count = 0;
+  char **param_array = (char **)malloc(default_num_param
+   * sizeof(char*));
+
+  char *token, *save_ptr;
+  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
+      token = strtok_r (NULL, " ", &save_ptr)) {
+    param_array[count] = token;
+    count++;
+    if (count >= default_num_param) {
+      // need to realloc more space
+      default_num_param *= 2;
+      param_array = (char **)realloc(param_array,
+       default_num_param * sizeof(char*));
+    }
+  }
+  /* end of inserting */
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -307,7 +327,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, param_array, count))
     goto done;
 
   /* Start address. */
@@ -317,6 +337,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
+  free(param_array);
   file_close (file);
   return success;
 }
@@ -432,7 +453,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp, char **args, int argc) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -441,9 +462,44 @@ setup_stack (void **esp)
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
+      if (success) {
         *esp = PHYS_BASE;
-      else
+        // put all the args on to the stack
+        int i = argc - 1, total_size = 0;
+        void* adds_array[argc];
+        for (i = argc - 1; i>=0; i--) {
+          *esp = (char*)*esp - strlen(args[i]);
+          total_size += strlen(args[i]);
+          adds_array[i] = *esp;
+          strlcpy(*esp, args[i], strlen(args[i]) + 1);
+        }
+        // alignment by 4
+        int word_align_unit = 4 - total_size % 4;
+        *esp = (char*)*esp - word_align_unit;
+        memset(*esp, 0, word_align_unit);
+        // put all the addrees values on the stack
+        // put the argv[argc] 0
+        *esp = (char*) (*esp) - 4;
+        memset(*esp, 0, 4);
+
+        for (i = argc - 1; i>= 0; i--) {
+          *esp = (char*) (*esp) - 4;
+          memcpy (*esp, adds_array + i, 4);
+          //**esp = adds_array[i];
+        }
+        // put the return address
+        *esp = (char*) (*esp) - 4;
+        void *tmp_add = (char *)*esp + 4;
+        memcpy(*esp, &tmp_add, 4);
+        // **esp = (char*)*esp + 4;
+        
+        // put argv
+        *esp = (char*) (*esp) - 4;
+        memcpy(*esp, &argc, 4);
+        // put the return address
+        *esp = (char*) (*esp) - 4;
+        memset(*esp, 0, 4);
+      } else
         palloc_free_page (kpage);
     }
   return success;
