@@ -42,12 +42,13 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
   
-  // just do one copy
+  /* Make another copy to tokenize.
+     For the sake of grabbing the command name*/  
   char *fn_copy2;
   fn_copy2 = palloc_get_page (0);
   strlcpy (fn_copy2, file_name, PGSIZE);
   char *token, *save_ptr;
-  token = strtok_r (file_name, " ", &save_ptr);
+  token = strtok_r ((char *)file_name, " ", &save_ptr);
   
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
@@ -210,6 +211,7 @@ struct Elf32_Phdr
 #define PF_R 4          /* Readable. */
 
 static bool setup_stack (void **esp, char **argv, int argc);
+static void push_stack (void **esp, char **args, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -237,7 +239,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
    * sizeof(char*));
 
   char *token, *save_ptr;
-  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
+  for (token = strtok_r ((char *)file_name, " ", &save_ptr); token != NULL;
       token = strtok_r (NULL, " ", &save_ptr)) {
     param_array[count] = token;
     count++;
@@ -469,58 +471,57 @@ setup_stack (void **esp, char **args, int argc)
 {
   uint8_t *kpage;
   bool success = false;
-  // debug
-  /**
-  int iter = 0;
-  for (iter = 0; iter < argc; iter++) {
-    printf("%s\n", args[iter]);
-  }**/
-  //
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success) {
-        *esp = PHYS_BASE;
-        // put all the args on to the stack
-        int i = argc - 1, total_size = 0;
-        void* adds_array[argc];
-        for (i = argc - 1; i >= 0; i--) {
-          *esp = (char*)(*esp) - strlen(args[i]) - 1;
-          total_size += strlen(args[i]) + 1;
-          adds_array[i] = *esp;
-          memcpy(*esp, args[i], strlen(args[i]) + 1);
-        }
-        // alignment by 4
-        int word_align_unit = 4 - total_size % 4;
-        *esp = (char*)*esp - word_align_unit;
-        memset(*esp, 0, word_align_unit);
-        // put all the addrees values on the stack
-        // put the argv[argc] 0
-        *esp = (char*) (*esp) - 4;
-        memset(*esp, 0, 4);
-
-        for (i = argc - 1; i>= 0; i--) {
-          *esp = (char*) (*esp) - 4;
-          memcpy (*esp, adds_array + i, 4);
-          //**esp = adds_array[i];
-        }
-        // put the return address
-        *esp = (char*) (*esp) - 4;
-        void *tmp_add = (char *)*esp + 4;
-        memcpy(*esp, &tmp_add, 4);
-        // **esp = (char*)*esp + 4;
-        
-        // put argv
-        *esp = (char*) (*esp) - 4;
-        memcpy(*esp, &argc, 4);
-        // put the return address
-        *esp = (char*) (*esp) - 4;
-        memset(*esp, 0, 4);
+        push_stack(esp, args, argc);
       } else
         palloc_free_page (kpage);
     }
   return success;
+}
+
+static void
+push_stack (void **esp, char **args, int argc) {
+  int i, total_size, word_align_unit;
+  void* adds_array[argc];
+  *esp = PHYS_BASE;
+  total_size = 0;
+
+  // Push actual arguments
+  for (i = argc - 1; i >= 0; i--) {
+    *esp = (char*) (*esp) - strlen(args[i]) - 1;
+    total_size += strlen(args[i]) + 1;
+    adds_array[i] = *esp;
+    memcpy(*esp, args[i], strlen(args[i]) + 1);
+  }
+  // Realign to words
+  word_align_unit = 4 - total_size % 4;
+  *esp = (char*) (*esp) - word_align_unit;
+  memset(*esp, 0, word_align_unit);
+
+  // Add the null pointer
+  *esp = (char*) (*esp) - 4;
+  memset(*esp, 0, 4);
+
+  // Push argument addresses
+  for (i = argc - 1; i>= 0; i--) {
+    *esp = (char*) (*esp) - 4;
+    memcpy (*esp, adds_array + i, 4);
+  }
+  // Add argv
+  *esp = (char*) (*esp) - 4;
+  void *tmp_add = (char *)*esp + 4;
+  memcpy(*esp, &tmp_add, 4);
+  
+  // Add argc
+  *esp = (char*) (*esp) - 4;
+  memcpy(*esp, &argc, 4);
+  // Add the return address
+  *esp = (char*) (*esp) - 4;
+  memset(*esp, 0, 4);
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
