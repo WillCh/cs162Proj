@@ -19,6 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+#include "threads/malloc.h"
 static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -40,11 +41,19 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
+  
+  // just do one copy
+  char *fn_copy2;
+  fn_copy2 = palloc_get_page (0);
+  strlcpy (fn_copy2, file_name, PGSIZE);
+  char *token, *save_ptr;
+  token = strtok_r (file_name, " ", &save_ptr);
+  
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+  palloc_free_page (fn_copy2);
   return tid;
 }
 
@@ -239,11 +248,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
        default_num_param * sizeof(char*));
     }
   }
-  // debug
-  //int iter = 0;
-  //for (iter = 0; iter < count; iter++) {
-  //  printf("%s\n", param_array[iter]);
-  //}
+  
   /* end of inserting */
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -464,7 +469,13 @@ setup_stack (void **esp, char **args, int argc)
 {
   uint8_t *kpage;
   bool success = false;
-
+  // debug
+  /**
+  int iter = 0;
+  for (iter = 0; iter < argc; iter++) {
+    printf("%s\n", args[iter]);
+  }**/
+  //
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL) 
     {
@@ -474,11 +485,11 @@ setup_stack (void **esp, char **args, int argc)
         // put all the args on to the stack
         int i = argc - 1, total_size = 0;
         void* adds_array[argc];
-        for (i = argc - 1; i>=0; i--) {
-          *esp = (char*)*esp - strlen(args[i]);
-          total_size += strlen(args[i]);
+        for (i = argc - 1; i >= 0; i--) {
+          *esp = (char*)(*esp) - strlen(args[i]) - 1;
+          total_size += strlen(args[i]) + 1;
           adds_array[i] = *esp;
-          strlcpy(*esp, args[i], strlen(args[i]) + 1);
+          memcpy(*esp, args[i], strlen(args[i]) + 1);
         }
         // alignment by 4
         int word_align_unit = 4 - total_size % 4;
