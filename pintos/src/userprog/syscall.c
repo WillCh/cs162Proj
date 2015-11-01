@@ -9,6 +9,7 @@
 #include "userprog/process.h"
 #include "threads/synch.h"
 #include "filesys/file.h"
+#include "kernel/stdio.h"
 
 static void syscall_handler (struct intr_frame *);
 static bool is_valid_pointer (uint32_t *pd, void* buffer, int32_t size);
@@ -16,6 +17,7 @@ static int32_t sys_read_handler (int fd, void* buffer, int32_t size);
 static void sys_exit_handler (int status);
 static int32_t sys_open_handler (char *name);
 static int find_free_fd (struct list *fd_list, struct file *file_pointer);
+static struct fd_pair* get_file_pair(int fd, struct list *fd_list);
 
 void
 syscall_init (void) 
@@ -44,11 +46,32 @@ syscall_handler (struct intr_frame *f UNUSED)
     int fd = (int) (args[1]);
     char *buffer = (void *) (args[2]);
     size_t size = (size_t) (args[3]);
-    int i = 0;
-    for (i = 0; i < size; i++) {
-      printf("%c", *(buffer+i));
+    struct thread *t = thread_current ();
+    uint32_t *pd = t->pagedir;
+    // check the buffer is valid
+    if (!is_valid_pointer (pd, buffer, size)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    } 
+
+    if (fd == 1) {
+      putbuf(buffer, size);
+      f->eax = size;
+    } else {
+      
+      struct list *fd_list = &(t->fd_list);
+      struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
+      if (fd_find_pair != NULL) {
+        // lock
+        lock_acquire(&(fd_find_pair->f->file_lock));
+        size_t size_write = file_write (fd_find_pair->f, buffer, size);
+        lock_release(&(fd_find_pair->f->file_lock));
+        f->eax = size_write; 
+      } else {
+        f->eax = 0;
+      }
     }
-  	//printf("fd is %d; buffer is %p; size is %zu\n", fd, buffer, size);
+    
   
   } else if (args[0] == SYS_CREATE) {
     char* file = (char*) (args[1]);
@@ -74,10 +97,34 @@ syscall_handler (struct intr_frame *f UNUSED)
     } else if (fd == -2) {
       f->eax = -1;
     }
+  } else if (args[0] == SYS_FILESIZE) {
+    int fd = (int)args[1];
+    struct thread *t = thread_current ();
+    struct list *fd_list = &(t->fd_list);
+    struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
+    if (fd_find_pair == NULL) {
+      f->eax = -1;
+    } else {
+      f->eax = file_length(fd_find_pair->f);
+    }
   }
+
+
 }
 
 
+static struct fd_pair*
+get_file_pair(int fd, struct list *fd_list) {
+  struct list_elem *e;
+  for (e = list_begin (fd_list); e != list_end (fd_list);
+       e = list_next (e)) {
+    struct fd_pair *pair = list_entry (e, struct fd_pair, fd_elem);
+    if (pair->fd == fd) {
+      return pair;
+    }
+  }
+  return NULL;
+}
 
 static bool
 is_valid_pointer (uint32_t *pd, void* buffer, int32_t size) {
@@ -85,9 +132,12 @@ is_valid_pointer (uint32_t *pd, void* buffer, int32_t size) {
   int i = 0;
   for (i = 0; i <= size /4000; i++) {
     char *add = (char *)buffer + i * 4000;
-    void *tmp = pagedir_get_page (pd, (void *)add);
     bool is_user = is_user_vaddr((void *)add);
-    if ((!is_user) || (tmp == NULL)) {
+    if (!is_user) {
+      return false;
+    }
+    void *tmp = pagedir_get_page (pd, (void *)add);
+    if (tmp == NULL) {
       return false;
     }
   }
