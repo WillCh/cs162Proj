@@ -14,7 +14,6 @@
 static void syscall_handler (struct intr_frame *);
 static bool is_valid_pointer (uint32_t *pd, void* buffer, int32_t size);
 static int32_t sys_read_handler (int fd, void* buffer, int32_t size);
-static void sys_exit_handler (int status);
 static int32_t sys_open_handler (char *name);
 static int find_free_fd (struct list *fd_list, struct file *file_pointer);
 static struct fd_pair* get_file_pair(int fd, struct list *fd_list);
@@ -196,7 +195,7 @@ is_valid_pointer (uint32_t *pd, void* buffer, int32_t size) {
 }
 
 
-static void
+void
 sys_exit_handler (int status) {
   printf("%s: exit(%d)\n", &thread_current ()->name, status);
   thread_exit();
