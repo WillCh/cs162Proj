@@ -48,7 +48,7 @@ process_execute (const char *file_name)
   fn_copy2 = palloc_get_page (0);
   strlcpy (fn_copy2, file_name, PGSIZE);
   char *token, *save_ptr;
-  token = strtok_r ((char *)file_name, " ", &save_ptr);
+  token = strtok_r ((char *)fn_copy2, " ", &save_ptr);
   
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
