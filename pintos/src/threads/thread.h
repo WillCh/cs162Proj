@@ -97,6 +97,10 @@ struct thread
 
     // list of fd_pair
     struct list fd_list;
+
+    // list of children wait_structs, adde by Chonghao
+    struct list children;
+
     //
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

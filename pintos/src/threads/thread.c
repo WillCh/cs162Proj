@@ -465,6 +465,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   // call the init list for list of fd
   list_init(&(t->fd_list));
+  // call the init list for list of children wait struct
+  list_init(&(t->children));
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -580,6 +582,26 @@ allocate_tid (void)
 
   return tid;
 }
+
+// added by Chonghao
+struct wait_status*
+get_child_by_tid (struct thread *cur, tid_t tid) {
+  struct list children_list;
+  struct list_elem *e;
+
+  children_list = cur->children;
+
+  for (e = list_begin (&children_list); e != list_end (&children_list);
+       e = list_next (e))
+    {
+      struct wait_status *wait_child = list_entry (e, struct wait_status, elem);
+      if (wait_child->tid == tid) {
+        return wait_child;
+      }
+    }
+  return NULL;
+}
+
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */

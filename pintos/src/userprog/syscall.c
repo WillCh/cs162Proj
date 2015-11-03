@@ -157,6 +157,13 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = -1;
       sys_exit_handler(-1);
     }
+  } else if (args[0] == SYS_PRACTICE) {
+    int ret = args[1] + 1;
+    f->eax = ret;
+  } else if (args[0] == SYS_EXEC) {
+    char* cmd_line = (char*) (argv[1]);
+    struct thread *
+    //TODO
   }
 
 
