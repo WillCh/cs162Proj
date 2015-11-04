@@ -20,7 +20,6 @@
 #include "threads/vaddr.h"
 
 #include "threads/malloc.h"
-static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -34,7 +33,6 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -86,7 +84,7 @@ start_process (void *file_name_)
   struct thread *curr = thread_current();
   if (!success){ 
     curr->wait_status->load_code= -1;
-    sema_up(&(curr->wait_status->load_finished)); 
+  sema_up(&(curr->wait_status->load_finished)); 
     thread_exit ();
   }
   sema_up(&(curr->wait_status->load_finished)); 
@@ -110,10 +108,18 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  sema_down (&temporary);
-  return 0;
+  struct wait_status* child_wait_status = get_child_by_tid(thread_current(),child_tid); 
+  if (child_wait_status){
+    sema_down(&child_wait_status->dead);
+    lock_acquire(&child_wait_status->ref_cnt_lock);
+    child_wait_status->ref_cnt = 1;
+    lock_release(&child_wait_status->ref_cnt_lock);
+    return child_wait_status->exit_code;
+  }
+  
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -127,7 +133,7 @@ process_exit (void)
      to the kernel-only page directory. */
   pd = cur->pagedir;
   if (pd != NULL) 
-    {
+  {
       /* Correct ordering here is crucial.  We must set
          cur->pagedir to NULL before switching page directories,
          so that a timer interrupt can't switch back to the
@@ -138,8 +144,36 @@ process_exit (void)
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
+  }
+  struct thread *curr = thread_current();
+  struct list children_list;
+  struct list_elem *e;
+
+  children_list = curr->children_wait_statuses;
+
+  for (e = list_begin (&children_list); e != list_end (&children_list);
+       e = list_next (e))
+  {
+    struct wait_status *ws = list_entry (e, struct wait_status, elem);
+    lock_acquire(&ws->ref_cnt_lock);
+    ws->ref_cnt--;
+    lock_release(&ws->ref_cnt_lock);
+    if (ws->ref_cnt == 0)
+    {
+      free(ws);   
+      e->prev->next = e->next;
+      e->next->prev = e->prev;
     }
-  sema_up (&temporary);
+  }
+
+  struct wait_status *ws = curr->wait_status;
+  lock_acquire(&ws->ref_cnt_lock);
+  ws->ref_cnt--;
+  lock_release(&ws->ref_cnt_lock);
+  if (!ws->ref_cnt)
+  {
+    free(ws);
+  }
 }
 
 /* Sets up the CPU for running user code in the current

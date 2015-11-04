@@ -610,7 +610,8 @@ allocate_tid (void)
 
 // added by Chonghao
 struct wait_status*
-get_child_by_tid (struct thread *cur, tid_t tid) {
+get_child_by_tid (struct thread *cur, tid_t tid) 
+{
   struct list children_list;
   struct list_elem *e;
 
