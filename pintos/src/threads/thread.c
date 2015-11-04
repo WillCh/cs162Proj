@@ -491,7 +491,7 @@ init_wait_status(struct thread *t)
   wait_status->tid = t->tid;
   wait_status->exit_code = 0;
   wait_status->load_code= 0;
-  sema_init(&wait_status->dead, 1);
+  sema_init(&wait_status->dead, 0);
   sema_init(&wait_status->load_finished, 0);
   struct thread *parent = thread_current();
   list_push_back(&parent->children_wait_statuses, &wait_status->elem);

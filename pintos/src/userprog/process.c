@@ -20,6 +20,7 @@
 #include "threads/vaddr.h"
 
 #include "threads/malloc.h"
+static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -30,6 +31,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
+  sema_init (&temporary, 0);
   char *fn_copy;
   tid_t tid;
 
@@ -110,16 +112,20 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid) 
 {
+  
   struct wait_status* child_wait_status = get_child_by_tid(thread_current(),child_tid); 
   if (child_wait_status){
     sema_down(&child_wait_status->dead);
-    lock_acquire(&child_wait_status->ref_cnt_lock);
-    child_wait_status->ref_cnt = 1;
-    lock_release(&child_wait_status->ref_cnt_lock);
+    //lock_acquire(&child_wait_status->ref_cnt_lock);
+    //child_wait_status->ref_cnt = 1;
+    //lock_release(&child_wait_status->ref_cnt_lock);
     return child_wait_status->exit_code;
   }
   
   return -1;
+  
+  sema_up(&temporary);
+  return 0;
 }
 
 /* Free the current process's resources. */
@@ -129,6 +135,41 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  struct list children_list;
+  struct list_elem *e;
+
+  children_list = cur->children_wait_statuses;
+  
+  for (e = list_begin (&children_list); e != list_end (&children_list);
+       e = list_next (e))
+  {
+    struct wait_status *ws = list_entry (e, struct wait_status, elem);
+    lock_acquire(&ws->ref_cnt_lock);
+    ws->ref_cnt--;
+    if (ws->ref_cnt == 0)
+    {
+      free(ws);   
+      /*
+      e->prev->next = e->next;
+      e->next->prev = e->prev;
+      */
+      list_remove(e);
+    }
+    lock_release(&ws->ref_cnt_lock);
+  }
+
+  struct wait_status *ws = cur->wait_status;
+  lock_acquire(&ws->ref_cnt_lock);
+  ws->ref_cnt--;
+  lock_release(&ws->ref_cnt_lock);
+  if (!ws->ref_cnt)
+  {
+    free(ws);
+  }
+  else
+  {
+    sema_up(&ws->dead);
+  }
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -145,35 +186,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
   }
-  struct thread *curr = thread_current();
-  struct list children_list;
-  struct list_elem *e;
-
-  children_list = curr->children_wait_statuses;
-
-  for (e = list_begin (&children_list); e != list_end (&children_list);
-       e = list_next (e))
-  {
-    struct wait_status *ws = list_entry (e, struct wait_status, elem);
-    lock_acquire(&ws->ref_cnt_lock);
-    ws->ref_cnt--;
-    lock_release(&ws->ref_cnt_lock);
-    if (ws->ref_cnt == 0)
-    {
-      free(ws);   
-      e->prev->next = e->next;
-      e->next->prev = e->prev;
-    }
-  }
-
-  struct wait_status *ws = curr->wait_status;
-  lock_acquire(&ws->ref_cnt_lock);
-  ws->ref_cnt--;
-  lock_release(&ws->ref_cnt_lock);
-  if (!ws->ref_cnt)
-  {
-    free(ws);
-  }
+  
+  
 }
 
 /* Sets up the CPU for running user code in the current

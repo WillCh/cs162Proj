@@ -31,7 +31,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   //printf("System call number: %d\n", args[0]);
   if (args[0] == SYS_EXIT) {
     f->eax = args[1];
-    process_exit();
+    //process_exit();
     sys_exit_handler(args[1]);
 
   } else if (args[0] == SYS_READ) {
