@@ -20,7 +20,6 @@
 #include "threads/vaddr.h"
 
 #include "threads/malloc.h"
-static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -31,7 +30,6 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-  sema_init (&temporary, 0);
   char *fn_copy;
   tid_t tid;
 
@@ -115,17 +113,15 @@ process_wait (tid_t child_tid)
   
   struct wait_status* child_wait_status = get_child_by_tid(thread_current(),child_tid); 
   if (child_wait_status){
-    sema_down(&child_wait_status->dead);
-    //lock_acquire(&child_wait_status->ref_cnt_lock);
-    //child_wait_status->ref_cnt = 1;
-    //lock_release(&child_wait_status->ref_cnt_lock);
+    if (child_wait_status->ref_cnt == 2)
+    { 
+      sema_down(&child_wait_status->dead);
+    }
     return child_wait_status->exit_code;
   }
   
   return -1;
   
-  sema_up(&temporary);
-  return 0;
 }
 
 /* Free the current process's resources. */
