@@ -161,9 +161,17 @@ syscall_handler (struct intr_frame *f UNUSED)
     int ret = args[1] + 1;
     f->eax = ret;
   } else if (args[0] == SYS_EXEC) {
-    char* cmd_line = (char*) (argv[1]);
-    struct thread *
-    //TODO
+    char* cmd_line = (char*) (args[1]);
+    struct thread *parent = thread_current();
+    void *tmp = pagedir_get_page (parent->pagedir, (void *)cmd_line);
+    if (tmp){
+      tid_t tid = process_execute(cmd_line);
+      struct wait_status *child_wait_status = get_child_by_tid(parent, tid);
+      f->eax = (child_wait_status->load_code == -1) ? -1 : (uint32_t)tid;
+    }
+    else {
+      f->eax = -1;
+    }   
   }
 
 

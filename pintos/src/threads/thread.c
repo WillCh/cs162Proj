@@ -65,6 +65,7 @@ static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
 static void init_thread (struct thread *, const char *name, int priority);
+static void init_wait_status(struct thread *);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
@@ -92,6 +93,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -182,6 +184,8 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+  init_wait_status(t);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -466,11 +470,32 @@ init_thread (struct thread *t, const char *name, int priority)
   // call the init list for list of fd
   list_init(&(t->fd_list));
   // call the init list for list of children wait struct
-  list_init(&(t->children));
+  list_init(&(t->children_wait_statuses));
+
+  /* init the wait status struct */
+  
+
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
+}
+
+
+static void
+init_wait_status(struct thread *t)
+{
+  struct wait_status *wait_status = (struct wait_status *)malloc(sizeof(struct wait_status));
+  lock_init(&wait_status->ref_cnt_lock);
+  wait_status->ref_cnt = 2;
+  wait_status->tid = t->tid;
+  wait_status->exit_code = 0;
+  wait_status->load_code= 0;
+  sema_init(&wait_status->dead, 1);
+  sema_init(&wait_status->load_finished, 0);
+  struct thread *parent = thread_current();
+  list_push_back(&parent->children_wait_statuses, &wait_status->elem);
+  t->wait_status = wait_status;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -589,7 +614,7 @@ get_child_by_tid (struct thread *cur, tid_t tid) {
   struct list children_list;
   struct list_elem *e;
 
-  children_list = cur->children;
+  children_list = cur->children_wait_statuses;
 
   for (e = list_begin (&children_list); e != list_end (&children_list);
        e = list_next (e))
