@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -113,6 +114,8 @@ struct thread
     struct wait_status *wait_status;
     // list of children wait_structs, adde by Chonghao
     struct list children_wait_statuses;
+
+    struct file * executable;
 
     //
 #ifdef USERPROG

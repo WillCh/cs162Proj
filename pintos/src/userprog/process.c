@@ -84,7 +84,7 @@ start_process (void *file_name_)
   struct thread *curr = thread_current();
   if (!success){ 
     curr->wait_status->load_code= -1;
-  sema_up(&(curr->wait_status->load_finished)); 
+    sema_up(&(curr->wait_status->load_finished)); 
     thread_exit ();
   }
   sema_up(&(curr->wait_status->load_finished)); 
@@ -110,14 +110,18 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid) 
 {
-  
   struct wait_status* child_wait_status = get_child_by_tid(thread_current(),child_tid); 
   if (child_wait_status){
     if (child_wait_status->ref_cnt == 2)
     { 
       sema_down(&child_wait_status->dead);
     }
-    return child_wait_status->exit_code;
+
+    int exit_code = child_wait_status->exit_code;
+    list_remove(&child_wait_status->elem);
+
+    
+    return exit_code;
   }
   
   return -1;
@@ -131,29 +135,22 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  struct list children_list;
-  struct list_elem *e;
+  struct list_elem *e = list_begin(&cur->children_wait_statuses);
 
-  children_list = cur->children_wait_statuses;
-  
-  for (e = list_begin (&children_list); e != list_end (&children_list);
-       e = list_next (e))
+  while(e != list_end (&cur->children_wait_statuses))
   {
-    struct wait_status *ws = list_entry (e, struct wait_status, elem);
-    lock_acquire(&ws->ref_cnt_lock);
-    ws->ref_cnt--;
-    if (ws->ref_cnt == 0)
+    struct wait_status *child_ws = list_entry (e, struct wait_status, elem);
+    lock_acquire(&child_ws->ref_cnt_lock);
+    child_ws->ref_cnt--;
+    lock_release(&child_ws->ref_cnt_lock);
+    e = list_next(e);
+    if (child_ws->ref_cnt == 0)
     {
-      free(ws);   
-      /*
-      e->prev->next = e->next;
-      e->next->prev = e->prev;
-      */
-      list_remove(e);
+      list_remove(&child_ws->elem);
+      free(child_ws);   
     }
-    lock_release(&ws->ref_cnt_lock);
   }
-
+  
   struct wait_status *ws = cur->wait_status;
   lock_acquire(&ws->ref_cnt_lock);
   ws->ref_cnt--;
@@ -165,6 +162,10 @@ process_exit (void)
   else
   {
     sema_up(&ws->dead);
+  }
+  if (cur->executable){
+    file_allow_write(cur->executable);
+    file_close(cur->executable);
   }
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -220,6 +221,7 @@ typedef uint16_t Elf32_Half;
 struct Elf32_Ehdr
   {
     unsigned char e_ident[16];
+
     Elf32_Half    e_type;
     Elf32_Half    e_machine;
     Elf32_Word    e_version;
@@ -265,6 +267,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
+
 static bool setup_stack (void **esp, char **argv, int argc);
 static void push_stack (void **esp, char **args, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
@@ -284,6 +287,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
   off_t file_ofs;
+
   bool success = false;
   int i;
 
@@ -301,6 +305,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     if (count >= default_num_param) {
       // need to realloc more space
       default_num_param *= 2;
+
       param_array = (char **)realloc(param_array,
        default_num_param * sizeof(char*));
     }
@@ -323,6 +328,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+  thread_current()->executable = file;
+  file_deny_write(file);
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -407,7 +414,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not. */
   free(param_array);
-  file_close (file);
+
+  // file_close (file);
   return success;
 }
 

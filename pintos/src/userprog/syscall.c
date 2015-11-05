@@ -175,7 +175,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     }   
   } else if (args[0] == SYS_WAIT) {
     tid_t tid = (int) (args[1]);
-    process_wait(tid);
+    f->eax = process_wait(tid);
   }
 
 

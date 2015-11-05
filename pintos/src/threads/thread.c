@@ -612,12 +612,9 @@ allocate_tid (void)
 struct wait_status*
 get_child_by_tid (struct thread *cur, tid_t tid) 
 {
-  struct list children_list;
+
   struct list_elem *e;
-
-  children_list = cur->children_wait_statuses;
-
-  for (e = list_begin (&children_list); e != list_end (&children_list);
+  for (e = list_begin (&cur->children_wait_statuses); e != list_end (&cur->children_wait_statuses);
        e = list_next (e))
     {
       struct wait_status *wait_child = list_entry (e, struct wait_status, elem);
