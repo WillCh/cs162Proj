@@ -34,6 +34,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   //printf("System call number: %d\n", args[0]);
   if (args[0] == SYS_EXIT) {
     f->eax = args[1];
+    //process_exit();
     sys_exit_handler(args[1]);
 
   } else if (args[0] == SYS_READ) {
@@ -160,6 +161,24 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = -1;
       sys_exit_handler(-1);
     }
+  } else if (args[0] == SYS_PRACTICE) {
+    int ret = args[1] + 1;
+    f->eax = ret;
+  } else if (args[0] == SYS_EXEC) {
+    char* cmd_line = (char*) (args[1]);
+    struct thread *parent = thread_current();
+    void *tmp = pagedir_get_page (parent->pagedir, (void *)cmd_line);
+    if (tmp){
+      tid_t tid = process_execute(cmd_line);
+      struct wait_status *child_wait_status = get_child_by_tid(parent, tid);
+      f->eax = (child_wait_status->load_code == -1) ? -1 : (uint32_t)tid;
+    }
+    else {
+      f->eax = -1;
+    }   
+  } else if (args[0] == SYS_WAIT) {
+    tid_t tid = (int) (args[1]);
+    f->eax = process_wait(tid);
   }
 
 
@@ -201,6 +220,7 @@ is_valid_pointer (uint32_t *pd, void* buffer, int32_t size) {
 void
 sys_exit_handler (int status) {
   printf("%s: exit(%d)\n", &thread_current ()->name, status);
+  thread_current()->wait_status->exit_code = status;
   thread_exit();
 }
 

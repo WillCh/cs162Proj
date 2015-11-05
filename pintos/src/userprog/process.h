@@ -3,7 +3,6 @@
 
 #include <list.h>
 #include "filesys/file.h"
-
 #include "threads/thread.h"
 
 
@@ -19,5 +18,6 @@ struct fd_pair
 	int fd;
 	struct list_elem fd_elem;
 };
+
 
 #endif /* userprog/process.h */

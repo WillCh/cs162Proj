@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -25,6 +26,18 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+struct wait_status
+{
+	struct list_elem elem; /* children list element */
+	struct lock ref_cnt_lock; /* lock to protect ref_cnt */
+	int ref_cnt; /* 2=child and parent both alive, 1=either child or parent alive */
+	tid_t tid; /* child thread id */
+	int exit_code; /* exit code, if dead */
+    int load_code; 
+	struct semaphore dead; /* 1=child_alive, 0=child_dead */
+    struct semaphore load_finished;
+};
 
 /* A kernel thread or user process.
 
@@ -97,6 +110,13 @@ struct thread
 
     // list of fd_pair
     struct list fd_list;
+
+    struct wait_status *wait_status;
+    // list of children wait_structs, adde by Chonghao
+    struct list children_wait_statuses;
+
+    struct file * executable;
+
     //
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -143,4 +163,5 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+struct wait_status* get_child_by_tid (struct thread *cur, tid_t tid); 
 #endif /* threads/thread.h */

@@ -20,7 +20,6 @@
 #include "threads/vaddr.h"
 
 #include "threads/malloc.h"
-static struct semaphore temporary;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -34,7 +33,6 @@ process_execute (const char *file_name)
   char *fn_copy;
   tid_t tid;
 
-  sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -52,8 +50,15 @@ process_execute (const char *file_name)
   
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
+  struct thread *parent = thread_current();
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+  else{
+    struct wait_status *child_wait_status = get_child_by_tid(parent, tid);
+    if(child_wait_status){
+      sema_down(&child_wait_status->load_finished);
+    }
+  }
   palloc_free_page (fn_copy2);
   return tid;
 }
@@ -76,9 +81,13 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  struct thread *curr = thread_current();
+  if (!success){ 
+    curr->wait_status->load_code= -1;
+    sema_up(&(curr->wait_status->load_finished)); 
     thread_exit ();
-
+  }
+  sema_up(&(curr->wait_status->load_finished)); 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -99,10 +108,24 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  sema_down (&temporary);
-  return 0;
+  struct wait_status* child_wait_status = get_child_by_tid(thread_current(),child_tid); 
+  if (child_wait_status){
+    if (child_wait_status->ref_cnt == 2)
+    { 
+      sema_down(&child_wait_status->dead);
+    }
+
+    int exit_code = child_wait_status->exit_code;
+    list_remove(&child_wait_status->elem);
+
+    
+    return exit_code;
+  }
+  
+  return -1;
+  
 }
 
 /* Free the current process's resources. */
@@ -112,11 +135,43 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  struct list_elem *e = list_begin(&cur->children_wait_statuses);
+
+  while(e != list_end (&cur->children_wait_statuses))
+  {
+    struct wait_status *child_ws = list_entry (e, struct wait_status, elem);
+    lock_acquire(&child_ws->ref_cnt_lock);
+    child_ws->ref_cnt--;
+    lock_release(&child_ws->ref_cnt_lock);
+    e = list_next(e);
+    if (child_ws->ref_cnt == 0)
+    {
+      list_remove(&child_ws->elem);
+      free(child_ws);   
+    }
+  }
+  
+  struct wait_status *ws = cur->wait_status;
+  lock_acquire(&ws->ref_cnt_lock);
+  ws->ref_cnt--;
+  lock_release(&ws->ref_cnt_lock);
+  if (!ws->ref_cnt)
+  {
+    free(ws);
+  }
+  else
+  {
+    sema_up(&ws->dead);
+  }
+  if (cur->executable){
+    file_allow_write(cur->executable);
+    file_close(cur->executable);
+  }
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
   if (pd != NULL) 
-    {
+  {
       /* Correct ordering here is crucial.  We must set
          cur->pagedir to NULL before switching page directories,
          so that a timer interrupt can't switch back to the
@@ -127,8 +182,9 @@ process_exit (void)
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
-    }
-  sema_up (&temporary);
+  }
+  
+  
 }
 
 /* Sets up the CPU for running user code in the current
@@ -165,6 +221,7 @@ typedef uint16_t Elf32_Half;
 struct Elf32_Ehdr
   {
     unsigned char e_ident[16];
+
     Elf32_Half    e_type;
     Elf32_Half    e_machine;
     Elf32_Word    e_version;
@@ -210,6 +267,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
+
 static bool setup_stack (void **esp, char **argv, int argc);
 static void push_stack (void **esp, char **args, int argc);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
@@ -229,6 +287,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
   off_t file_ofs;
+
   bool success = false;
   int i;
 
@@ -246,6 +305,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     if (count >= default_num_param) {
       // need to realloc more space
       default_num_param *= 2;
+
       param_array = (char **)realloc(param_array,
        default_num_param * sizeof(char*));
     }
@@ -268,6 +328,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+  thread_current()->executable = file;
+  file_deny_write(file);
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -352,7 +414,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not. */
   free(param_array);
-  file_close (file);
+
+  // file_close (file);
   return success;
 }
 
