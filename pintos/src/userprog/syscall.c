@@ -191,6 +191,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     if (fd_find_pair != NULL) {
       // only delete the fd_pair here
       list_remove(&fd_find_pair->fd_elem);
+      file_close(fd_find_pair->f);
       free(fd_find_pair);
     }
 
@@ -285,6 +286,24 @@ is_valid_pointer (uint32_t *pd, void* buffer, int32_t size) {
 void
 sys_exit_handler (int status) {
   printf("%s: exit(%d)\n", &thread_current ()->name, status);
+  struct thread *cur = thread_current();
+  struct list *fd_list = &(cur->fd_list);
+  struct list_elem *e = list_begin (fd_list);
+  while (e !=  list_end(fd_list)) {
+    struct list_elem *tmp = e;
+    e = list_remove(e);
+    struct fd_pair *pair = list_entry (tmp, struct fd_pair, fd_elem);
+    file_close(pair->f);
+    free(pair);
+  }
+  /**
+  for (e = list_begin (fd_list); e != list_end (fd_list);
+       e = list_remove (e)) {
+    struct fd_pair *pair = list_entry (e, struct fd_pair, fd_elem);
+    file_close(pair->f);
+    free(pair);
+  } **/
+
   thread_current()->wait_status->exit_code = status;
   thread_exit();
 }
