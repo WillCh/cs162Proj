@@ -1,48 +1,54 @@
 #include "userprog/syscall.h"
-#include <stdio.h>
-#include <syscall-nr.h>
+#include "userprog/pagedir.h"
+#include "userprog/process.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/malloc.h"
 #include "threads/vaddr.h"
-#include "userprog/pagedir.h"
-#include "devices/input.h"
-#include "userprog/process.h"
 #include "threads/synch.h"
+#include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "devices/input.h"
 #include "kernel/stdio.h"
+#include <stdio.h>
+#include <syscall-nr.h>
 
 static void syscall_handler (struct intr_frame *);
+
+static struct fd_pair* get_file_pair(int fd, struct list *fd_list);
+static int find_free_fd (struct list *fd_list, struct file *file_pointer);
 static bool is_valid_pointer (uint32_t *pd, void* buffer, int32_t size);
+static bool is_args_valid(int num_args, uint32_t* args);
+static int32_t sys_write_handler (int fd, void* buffer, int32_t size);
 static int32_t sys_read_handler (int fd, void* buffer, int32_t size);
 static int32_t sys_open_handler (char *name);
-static int find_free_fd (struct list *fd_list, struct file *file_pointer);
-static struct fd_pair* get_file_pair(int fd, struct list *fd_list);
-static bool is_args_valide(int num_args, uint32_t* args);
+
+struct lock file_lock;
 
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init(&file_lock);
 }
 
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   uint32_t* args = ((uint32_t*) f->esp);
-  // check the args[0]'s location is valid
-  
-  if(!is_args_valide(1, args)) {
+  if(!is_args_valid(1, args)) {
     f->eax = -1;
     sys_exit_handler(-1);
   }
   if (args[0] == SYS_PRACTICE) {
-    if(!is_args_valide(2, args)) {
+    if(!is_args_valid(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
     f->eax = args[1] + 1;
+
   } else if (args[0] == SYS_EXIT) {
-    if(!is_args_valide(2, args)) {
+    if(!is_args_valid(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
@@ -50,7 +56,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     sys_exit_handler(args[1]);
 
   } else if (args[0] == SYS_READ) {
-    if(!is_args_valide(4, args)) {
+    if(!is_args_valid(4, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
@@ -62,43 +68,19 @@ syscall_handler (struct intr_frame *f UNUSED)
     if (read_num == -1) sys_exit_handler(-1);
 
   } else if (args[0] == SYS_WRITE) {
-    // get the param from the stack
-    if(!is_args_valide(4, args)) {
+    if(!is_args_valid(4, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
     int fd = (int) (args[1]);
     char *buffer = (void *) (args[2]);
     size_t size = (size_t) (args[3]);
-    struct thread *t = thread_current ();
-    uint32_t *pd = t->pagedir;
-    // check the buffer is valid
-    if (!is_valid_pointer (pd, buffer, size)) {
-
-      f->eax = -1;
-      sys_exit_handler(-1);
-    } 
-
-    if (fd == 1) {
-      putbuf(buffer, size);
-      f->eax = size;
-    } else {
-      
-      struct list *fd_list = &(t->fd_list);
-      struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
-      if (fd_find_pair != NULL) {
-        // lock
-        lock_acquire(&(fd_find_pair->f->file_lock));
-        size_t size_write = file_write (fd_find_pair->f, buffer, size);
-        lock_release(&(fd_find_pair->f->file_lock));
-        f->eax = size_write; 
-      } else {
-        f->eax = 0;
-      }
-    }
+    int32_t write_num = sys_write_handler(fd, buffer, size);
+    f->eax = write_num;
+    if (write_num == -1) sys_exit_handler(-1);
 
   } else if (args[0] == SYS_CREATE) {
-    if(!is_args_valide(3, args)) {
+    if(!is_args_valid(3, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
@@ -115,7 +97,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 
   } else if (args[0] == SYS_OPEN) {
-    if(!is_args_valide(2, args)) {
+    if(!is_args_valid(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
@@ -129,7 +111,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = -1;
     }
   } else if (args[0] == SYS_FILESIZE) {
-    if(!is_args_valide(2, args)) {
+    if(!is_args_valid(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
@@ -140,13 +122,13 @@ syscall_handler (struct intr_frame *f UNUSED)
     if (fd_find_pair == NULL) {
       f->eax = -1;
     } else {
-      lock_acquire(&(fd_find_pair->f->file_lock));
+      lock_acquire(&file_lock);
       f->eax = file_length(fd_find_pair->f);
-      lock_release(&(fd_find_pair->f->file_lock));
+      lock_release(&file_lock);
     }
 
   } else if (args[0] == SYS_SEEK) {
-    if(!is_args_valide(3, args)) {
+    if(!is_args_valid(3, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
@@ -156,13 +138,13 @@ syscall_handler (struct intr_frame *f UNUSED)
     struct list *fd_list = &(t->fd_list);
     struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
     if (fd_find_pair != NULL) {
-      lock_acquire(&(fd_find_pair->f->file_lock));
+      lock_acquire(&file_lock);
       file_seek (fd_find_pair->f, position);
-      lock_release(&(fd_find_pair->f->file_lock));
+      lock_release(&file_lock);
     } 
 
   } else if (args[0] == SYS_TELL)  {
-    if(!is_args_valide(2, args)) {
+    if(!is_args_valid(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
@@ -171,16 +153,16 @@ syscall_handler (struct intr_frame *f UNUSED)
     struct list *fd_list = &(t->fd_list);
     struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
     if (fd_find_pair != NULL) {
-      lock_acquire(&(fd_find_pair->f->file_lock));
+      lock_acquire(&file_lock);
       size_t res = file_tell (fd_find_pair->f);
-      lock_release(&(fd_find_pair->f->file_lock));
+      lock_release(&file_lock);
       f->eax = res;
     } else {
       f->eax = -1;
     }
 
   } else if (args[0] == SYS_CLOSE) {
-    if(!is_args_valide(2, args)) {
+    if(!is_args_valid(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
@@ -189,14 +171,13 @@ syscall_handler (struct intr_frame *f UNUSED)
     struct list *fd_list = &(t->fd_list);
     struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
     if (fd_find_pair != NULL) {
-      // only delete the fd_pair here
       list_remove(&fd_find_pair->fd_elem);
       file_close(fd_find_pair->f);
       free(fd_find_pair);
     }
 
   } else if (args[0] == SYS_REMOVE) {
-    if(!is_args_valide(2, args)) {
+    if(!is_args_valid(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
@@ -210,36 +191,121 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = -1;
       sys_exit_handler(-1);
     }
+
   } else if (args[0] == SYS_EXEC) {
-    if(!is_args_valide(2, args)) {
+    if(!is_args_valid(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
     char* cmd_line = (char*) (args[1]);
     struct thread *parent = thread_current();
     void *tmp = pagedir_get_page (parent->pagedir, (void *)cmd_line);
-    if (tmp){
+    if (tmp) {
       tid_t tid = process_execute(cmd_line);
       struct wait_status *child_wait_status = get_child_by_tid(parent, tid);
       f->eax = (child_wait_status->load_code == -1) ? -1 : (uint32_t)tid;
     }
     else {
       f->eax = -1;
-    }   
+    }
+
   } else if (args[0] == SYS_WAIT) {
-    if(!is_args_valide(2, args)) {
+    if(!is_args_valid(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
     tid_t tid = (int) (args[1]);
     f->eax = process_wait(tid);
   }
-
-
 }
 
+void
+sys_exit_handler (int status) {
+  printf("%s: exit(%d)\n", &thread_current ()->name, status);
+  // Close all the files
+  struct thread *cur = thread_current();
+  struct list *fd_list = &(cur->fd_list);
+  struct list_elem *e = list_begin (fd_list);
+  while (e !=  list_end(fd_list)) {
+    struct list_elem *tmp = e;
+    e = list_remove(e);
+    struct fd_pair *pair = list_entry (tmp, struct fd_pair, fd_elem);
+    file_close(pair->f);
+    free(pair);
+  }
+  thread_current()->wait_status->exit_code = status;
+  thread_exit();
+}
+
+static int32_t 
+sys_read_handler (int fd, void* buffer, int32_t size) {
+  struct thread *t = thread_current ();
+  uint32_t *pd = t->pagedir;
+  bool is_valid = is_valid_pointer(pd, buffer, size);
+  int32_t read_num = 0;
+  if (is_valid) {
+    if (fd == 0) {
+      int i = 0;
+      for (i = 0; i < size; i++) {
+        *((char*)buffer + i) = input_getc();
+      }
+    } else {
+      struct list *fd_list = &(t->fd_list);
+      struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
+      lock_acquire(&file_lock);
+      read_num = file_read (fd_find_pair->f, buffer, size); 
+      lock_release(&file_lock);
+    }
+  } else {
+    read_num = -1;
+  }
+  return read_num;
+}
+
+static int32_t 
+sys_write_handler (int fd, void* buffer, int32_t size) {
+  struct thread *t = thread_current ();
+  uint32_t *pd = t->pagedir;
+  int32_t write_num = 0;
+  if (!is_valid_pointer (pd, buffer, size)) {
+    write_num = -1;
+  } 
+  if (fd == 1) {
+    putbuf(buffer, size);
+    write_num = size;
+  } else {
+    struct list *fd_list = &(t->fd_list);
+    struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
+    if (fd_find_pair != NULL) {
+      lock_acquire(&file_lock);
+      size_t size_write = file_write (fd_find_pair->f, buffer, size);
+      lock_release(&file_lock);
+      write_num = size_write; 
+    } else {
+      write_num = 0;
+    }
+  }
+  return write_num;
+}
+
+static int32_t 
+sys_open_handler (char *name) {
+  struct thread *t = thread_current ();
+  uint32_t *pd = t->pagedir;
+  bool is_valid = is_valid_pointer(pd, name, 0);
+  if (is_valid) {
+    struct file *file_pointer = filesys_open (name);
+    if (file_pointer == NULL) return -2;
+    struct list *fd_list = &(t->fd_list);
+    int res_fd = find_free_fd(fd_list, file_pointer);
+    return(res_fd);
+  } else {
+    return -1;
+  }
+} 
+
 static bool
-is_args_valide(int num_args, uint32_t* args) {
+is_args_valid(int num_args, uint32_t* args) {
   struct thread *curr_t = thread_current ();
   uint32_t *curr_pd = curr_t->pagedir;
   int i = 0;
@@ -282,88 +348,11 @@ is_valid_pointer (uint32_t *pd, void* buffer, int32_t size) {
   return true;
 }
 
-
-void
-sys_exit_handler (int status) {
-  printf("%s: exit(%d)\n", &thread_current ()->name, status);
-  struct thread *cur = thread_current();
-  struct list *fd_list = &(cur->fd_list);
-  struct list_elem *e = list_begin (fd_list);
-  while (e !=  list_end(fd_list)) {
-    struct list_elem *tmp = e;
-    e = list_remove(e);
-    struct fd_pair *pair = list_entry (tmp, struct fd_pair, fd_elem);
-    file_close(pair->f);
-    free(pair);
-  }
-  /**
-  for (e = list_begin (fd_list); e != list_end (fd_list);
-       e = list_remove (e)) {
-    struct fd_pair *pair = list_entry (e, struct fd_pair, fd_elem);
-    file_close(pair->f);
-    free(pair);
-  } **/
-
-  thread_current()->wait_status->exit_code = status;
-  thread_exit();
-}
-
-static int32_t 
-sys_read_handler (int fd, void* buffer, int32_t size) {
-  struct thread *t = thread_current ();
-  uint32_t *pd = t->pagedir;
-  bool is_valid = is_valid_pointer(pd, buffer, size);
-  int32_t read_num = 0;
-  if (is_valid) {
-    if (fd == 0) {
-      int i = 0;
-      for (i = 0; i < size; i++) {
-        *((char*)buffer + i) = input_getc();
-      }
-    } else {
-      // find the fd_struct from the thread's list
-      struct list *fd_list = &(t->fd_list);
-      struct list_elem *e;
-
-      for (e = list_begin (fd_list); e != list_end (fd_list);
-           e = list_next (e)) {
-        struct fd_pair *pair = list_entry (e, struct fd_pair, fd_elem);
-        if (pair->fd == fd) {
-          struct file *file_pointer = pair->f;
-          lock_acquire(&file_pointer->file_lock);
-          read_num = file_read (file_pointer, buffer, size); 
-          lock_release(&file_pointer->file_lock);
-          break;
-        }
-      }
-    }
-    
-  } else {
-    read_num = -1;
-  }
-  return read_num;
-}
-
-static int32_t 
-sys_open_handler (char *name) {
-  struct thread *t = thread_current ();
-  uint32_t *pd = t->pagedir;
-  bool is_valid = is_valid_pointer(pd, name, 0);
-  if (is_valid) {
-    struct file *file_pointer = filesys_open (name);
-    if (file_pointer == NULL) return -2;
-    struct list *fd_list = &(t->fd_list);
-    int res_fd = find_free_fd(fd_list, file_pointer);
-    return(res_fd);
-  } else {
-    return -1;
-  }
-} 
-
 static int
 find_free_fd (struct list *fd_list, struct file *file_pointer) {
   struct list_elem *e, *prev_elem;
   int fd_prev = -1;
+
   struct fd_pair *insert_pair = (struct fd_pair *) malloc(sizeof(struct fd_pair));
   insert_pair->f = file_pointer;
 

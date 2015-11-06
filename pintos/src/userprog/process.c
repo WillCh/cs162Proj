@@ -163,16 +163,6 @@ process_exit (void)
   {
     sema_up(&ws->dead);
   }
-  // close all the fd
-  /**
-  struct list *fd_list = &(cur->fd_list);
-  for (e = list_begin (fd_list); e != list_end (fd_list);
-       e = list_remove (e)) {
-    struct fd_pair *pair = list_entry (e, struct fd_pair, fd_elem);
-    file_close(pair->f);
-    // free(pair);
-  }
-  **/
   if (cur->executable){
     file_allow_write(cur->executable);
     file_close(cur->executable);

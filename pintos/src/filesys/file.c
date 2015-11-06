@@ -16,7 +16,7 @@ file_open (struct inode *inode)
       file->pos = 0;
       file->deny_write = false;
       // add by Haoyu
-      lock_init(&(file->file_lock));
+      // lock_init(&(file->file_lock));
       return file;
     }
   else
