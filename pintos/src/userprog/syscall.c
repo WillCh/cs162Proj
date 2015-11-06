@@ -17,6 +17,7 @@ static int32_t sys_read_handler (int fd, void* buffer, int32_t size);
 static int32_t sys_open_handler (char *name);
 static int find_free_fd (struct list *fd_list, struct file *file_pointer);
 static struct fd_pair* get_file_pair(int fd, struct list *fd_list);
+static bool is_args_valide(int num_args, uint32_t* args);
 
 void
 syscall_init (void) 
@@ -30,31 +31,30 @@ syscall_handler (struct intr_frame *f UNUSED)
   uint32_t* args = ((uint32_t*) f->esp);
   // check the args[0]'s location is valid
   
-  struct thread *curr_t = thread_current ();
-  uint32_t *curr_pd = curr_t->pagedir;
-  if(!is_valid_pointer(curr_pd, &args[0], 0)) {
+  if(!is_args_valide(1, args)) {
+    f->eax = -1;
     sys_exit_handler(-1);
   }
   if (args[0] == SYS_PRACTICE) {
-    if(!is_valid_pointer(curr_pd, &args[1], 0)) {
-       sys_exit_handler(-1);
+    if(!is_args_valide(2, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
     }
     f->eax = args[1] + 1;
   } else if (args[0] == SYS_EXIT) {
-    if(!is_valid_pointer(curr_pd, &args[1], 0)) {
+    if(!is_args_valide(2, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
     f->eax = args[1];
-    //process_exit();
     sys_exit_handler(args[1]);
 
   } else if (args[0] == SYS_READ) {
-  	int fd = (int) (args[1]);
-    if(!is_valid_pointer(curr_pd, &args[1], 0)) {
+    if(!is_args_valide(4, args)) {
       f->eax = -1;
       sys_exit_handler(-1);
     }
+  	int fd = (int) (args[1]);
     char *buffer = (void *) (args[2]);
     int32_t size = (int32_t) (args[3]);
     int32_t read_num = sys_read_handler(fd, buffer, size);
@@ -63,20 +63,11 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   } else if (args[0] == SYS_WRITE) {
     // get the param from the stack
+    if(!is_args_valide(4, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     int fd = (int) (args[1]);
-    /**
-    if(!is_valid_pointer(curr_pd, &args[1], 0)) {
-      f->eax = -1;
-      sys_exit_handler(-1);
-    }
-    if(!is_valid_pointer(curr_pd, &args[2], 0)) {
-      f->eax = -1;
-      sys_exit_handler(-1);
-    }
-    if(!is_valid_pointer(curr_pd, &args[3], 0)) {
-      f->eax = -1;
-      sys_exit_handler(-1);
-    }**/
     char *buffer = (void *) (args[2]);
     size_t size = (size_t) (args[3]);
     struct thread *t = thread_current ();
@@ -107,6 +98,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 
   } else if (args[0] == SYS_CREATE) {
+    if(!is_args_valide(3, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     char* file = (char*) (args[1]);
     unsigned size = (unsigned) (args[2]);
     struct thread *t = thread_current ();
@@ -120,6 +115,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 
   } else if (args[0] == SYS_OPEN) {
+    if(!is_args_valide(2, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     char* name = (char*) (args[1]);
     int fd = sys_open_handler(name);
     f->eax = fd;
@@ -130,6 +129,10 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = -1;
     }
   } else if (args[0] == SYS_FILESIZE) {
+    if(!is_args_valide(2, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     int fd = (int)args[1];
     struct thread *t = thread_current ();
     struct list *fd_list = &(t->fd_list);
@@ -143,6 +146,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 
   } else if (args[0] == SYS_SEEK) {
+    if(!is_args_valide(3, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     int fd = (int) (args[1]);
     size_t position = (size_t) (args[2]);
     struct thread *t = thread_current ();
@@ -155,6 +162,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     } 
 
   } else if (args[0] == SYS_TELL)  {
+    if(!is_args_valide(2, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     int fd = (int) (args[1]);
     struct thread *t = thread_current ();
     struct list *fd_list = &(t->fd_list);
@@ -169,6 +180,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 
   } else if (args[0] == SYS_CLOSE) {
+    if(!is_args_valide(2, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     int fd = (int) (args[1]);
     struct thread *t = thread_current ();
     struct list *fd_list = &(t->fd_list);
@@ -180,6 +195,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
 
   } else if (args[0] == SYS_REMOVE) {
+    if(!is_args_valide(2, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     char* name = (char*) (args[1]);
     struct thread *t = thread_current ();
     uint32_t *pd = t->pagedir;
@@ -190,10 +209,11 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = -1;
       sys_exit_handler(-1);
     }
-  } else if (args[0] == SYS_PRACTICE) {
-    int ret = args[1] + 1;
-    f->eax = ret;
   } else if (args[0] == SYS_EXEC) {
+    if(!is_args_valide(2, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     char* cmd_line = (char*) (args[1]);
     struct thread *parent = thread_current();
     void *tmp = pagedir_get_page (parent->pagedir, (void *)cmd_line);
@@ -206,6 +226,10 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = -1;
     }   
   } else if (args[0] == SYS_WAIT) {
+    if(!is_args_valide(2, args)) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
     tid_t tid = (int) (args[1]);
     f->eax = process_wait(tid);
   }
@@ -213,6 +237,18 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 }
 
+static bool
+is_args_valide(int num_args, uint32_t* args) {
+  struct thread *curr_t = thread_current ();
+  uint32_t *curr_pd = curr_t->pagedir;
+  int i = 0;
+  for (i = 0; i < num_args; i++) {
+    if(!is_valid_pointer(curr_pd, &args[i], 0)) {
+      return false;
+    }
+  }
+  return true;
+}
 
 static struct fd_pair*
 get_file_pair(int fd, struct list *fd_list) {
