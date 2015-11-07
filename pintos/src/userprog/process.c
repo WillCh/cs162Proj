@@ -555,6 +555,9 @@ setup_stack (void **esp, char **args, int argc)
   return success;
 }
 
+/** 
+ *  function to push the args information to the stack.
+ **/
 static void
 push_stack (void **esp, char **args, int argc)
 {

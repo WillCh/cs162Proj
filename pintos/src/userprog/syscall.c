@@ -277,6 +277,11 @@ syscall_handler (struct intr_frame *f UNUSED)
   }
 }
 
+/**
+ *  function to handle the exit call, it will delete all fd
+ *  structs opened by this process. And call thread exit.
+ **/
+
 void
 sys_exit_handler (int status)
 {
@@ -296,6 +301,12 @@ sys_exit_handler (int status)
   thread_current()->wait_status->exit_code = status;
   thread_exit();
 }
+
+/**
+ *  function to handle the read call, it will check the validation
+ *  of the buffer, and it will iterate through the fd list to
+ *  find the file. When it try read, a lock is acquired.
+ **/
 
 static int32_t
 sys_read_handler (int fd, void* buffer, int32_t size)
@@ -329,6 +340,13 @@ sys_read_handler (int fd, void* buffer, int32_t size)
   }
   return read_num;
 }
+
+/**
+ *  function to handle the write call, it will check the validation
+ *  of the bufferr. Then we iterate the fd list to find the
+ *  file to call file_write. When call file_write, a lock is
+ *  acquired.
+ **/
 
 static int32_t
 sys_write_handler (int fd, void* buffer, int32_t size)
@@ -364,6 +382,11 @@ sys_write_handler (int fd, void* buffer, int32_t size)
   return write_num;
 }
 
+/**
+ *  function to handle the open call, it will check the name pointer
+ *  is valid. If so, it open the file, and find a smallest fd number
+ *  to return. Meanwhile add the fd struct to the list.
+ **/
 static int32_t
 sys_open_handler (char *name)
 {
@@ -384,6 +407,10 @@ sys_open_handler (char *name)
   }
 }
 
+/**
+ *  function to check the validatio of args. It will check
+ *  num_args of args's pointer.
+ **/
 static bool
 is_args_valid(int num_args, uint32_t* args)
 {
@@ -400,6 +427,10 @@ is_args_valid(int num_args, uint32_t* args)
   return true;
 }
 
+/**
+ *  function to find the fd_pair whose fd is the same
+ *  as the fd, from the fd_list.
+ **/
 static struct fd_pair*
 get_file_pair(int fd, struct list *fd_list)
 {
@@ -416,6 +447,10 @@ get_file_pair(int fd, struct list *fd_list)
   return NULL;
 }
 
+/**
+ *  function to check the validation of a memroy start from
+ *  buffer, and has length size. We check every 4 KB.
+ **/
 static bool
 is_valid_pointer (uint32_t *pd, void* buffer, int32_t size)
 {
@@ -438,6 +473,10 @@ is_valid_pointer (uint32_t *pd, void* buffer, int32_t size)
   return true;
 }
 
+/**
+ *  function to find the fd_pair which contains file_pointer,
+ *  delete the fd_pair struct from fd_list.
+ **/
 static int
 find_free_fd (struct list *fd_list, struct file *file_pointer)
 {
