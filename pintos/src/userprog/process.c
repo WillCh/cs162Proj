@@ -557,6 +557,7 @@ setup_stack (void **esp, char **args, int argc)
 
 /** 
  *  function to push the args information to the stack.
+ *  The stack pnter is esp.
  **/
 static void
 push_stack (void **esp, char **args, int argc)
