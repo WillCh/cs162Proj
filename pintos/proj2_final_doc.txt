@@ -1,0 +1,57 @@
+CS 162
+Project 2: User Programs
+Final Report
+
+GSI: Aleks
+Group Number: 35
+Haoyu Chen <haoyuchen@berkeley.edu>
+Jason Zhang <runyuzhang@berkeley.edu>
+Chonghao Huang <crhuang@berkeley.edu>
+Hugh Chen <hugh.chen1@gmail.com>
+
+Argument Passing
+A brief summary of our work:
+
+For argument passing, we put all the parameters for this call onto its stack. In order to achieve this objective, we wrote a function (push_stack) which is call inside the setup_stack function.
+
+What changes did you make from the design doc?
+We implemented pretty much what we stated in the design doc.  The only difference is that we created an array rather than a list to hold and handle the results from the strtok2 call.
+
+What went well and what could be improved?
+Initially we were not sure how to properly test the argument passing, and we believed it didn’t work even though it did.  It went fairly well overall, and we stuck to our plan in the design doc.
+
+File Operation Syscalls
+A brief summary of our work:
+In order to map the file to a int (fd), a fd_pair struct is used. For each process, it maintains a list which contains all its opened files’ corresponding fd_pair structs (in the kernel memory by calling malloc). Thus, we can map a fd to a file or a file to fd by searching this list. When a process closes a file, we delete its corresponding fd_pair. If a process finishes, we close all opened files and delete all the fd_pairs in the list.
+
+What changes did you make from the design doc?
+The only difference is that we realized that the file structs are created per every file descriptor, so our initial plan to create mutual exclusion through locks on the structs doesn’t work.  We simply switched to using a global lock to police any file access.  Other than this change, we stuck to the design doc and implemented each of the syscalls one by one, which proved to be fairly straightforward.  An additional change is that we switched from implementing an OS wide list of file descriptors to one per process.  The main reason is that it was ultimately quite simple to implement, and we don’t have to worry about concurrent processes.
+
+What went well and what could be improved?
+The main issue was the confusion over the mutual exclusion.  In addition, currently we use a list to store which file descriptors are currently open.  The doc mentioned that we might want to implement a maximum number of files open, which would suggest that we could use an array per process rather than a list.  This might bring about a few improvements in terms of speed.
+
+Wait/Exec Syscalls
+A brief summary of our work:
+
+We added a new struct called wait_status, referenced by both the parent and the child thread, to hold exit code as well as the load status of the child. To implement the mechanism of waiting, the wait struct also holds a semaphore called dead initialized to 0, which the parent would sema_down on to sleep itself after spawning the child, and which the child would sema_up to wake up the parent. Similarly, we also have a semaphore called load_finished to signal the parent to wake up after the child is finished loading, successfully or not.
+
+For the exec syscall, we first check whether arguments provided to exec have valid addresses, then we call process_execute with these arguments, which would create a new thread that runs the new program. The load status of the executable, which is taken from the boolean returned by load in process.c indicating whether load has failed or not. is stored in load_code of wait_status struct. Then parent is awakened through the child calling sema_up before exiting.
+
+For the wait syscall, after checking the validity of the argument addresses, we call process_wait which holds the wait logic. It would first check whether the child wait struct has ref_cnt is 2. If yes, that means the child is still alive and wait is needed, and calls sema_down on the semaphore dead. Otherwise, the exit code should already be stored in the wait struct so it just returns the exit code in the wait struct. Because parent would only wait on the child once, the wait struct is freed after the child exits. 
+
+Before a thread exits, it must have been in process_exit. First, it decrements the ref_cnt of all children wait structs by 1, then removes and frees all the children wait structs with ref count 0. Afterwards, it decrement the ref_cnt of the wait struct linked with its parent by one, and in case where ref_cnt becomes 0, that wait struct is freed and removed from the parent’s children wait struct list. Then it calls sema_up on dead to wake up the parent which could be waiting.
+
+All the ref count operations are protected by locks. 
+
+What changes did you make from the design doc?
+In the initial design doc, we thought that load and wait could share the same semaphore. When implementing it, we used separate semaphores to make the logic more straightforward.
+
+What went well and what could be improved?
+For optimization, we think that load and wait can indeed share the same semaphore. Since 
+the parent thread will be sleeping when the child thread is loading and will not wake up until the child thread has finished loading, the parent thread will not get a chance to call wait while the child thread is still loading. There would not be a condition when the semaphore if upped for one cause and downed for the other.
+
+ROX:
+There is some additional logic on protecting the executable that the thread is running on from other threads trying to write to it. This is done through adding an additional field in thread called executable that stores the file object, and upon loading the executable file, that file is marked denied to write by calling file_deny_write. When that thread exits, that file is marked writable by calling file_allow_write. 
+
+
+ 
