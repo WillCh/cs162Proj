@@ -1,0 +1,157 @@
+CS 162
+Project 3: File Systems
+Design Document
+
+
+Fill in the following information:
+
+
+GSI: Aleks
+Group Number: 35
+Haoyu Chen <haoyuchen@berkeley.edu>
+Jason Zhang <runyuzhang@berkeley.edu>
+Chonghao Huang <crhuang@berkeley.edu>
+Hugh Chen <hugh.chen1@gmail.com>
+
+
+Preliminary Questions
+=====================
+
+1) If you have any preliminary comments on your submission or notes for
+   the TAs please give them here.
+
+2) Please cite any offline or online sources you consulted while preparing your submission, other than the Pintos documentation, course text, lecture notes, and course staff.
+
+Buffer Cache
+============
+
+3) Copy here the declaration of each new or changed 'struct' or 'struct' member, global or static variable, 'typedef', or enumeration. Identify the purpose of each in 25 words or less.
+struct sector_cache {
+	bool valid;
+	bool dirty;
+	int pin_cnt;
+	lock pin_cnt_lock;
+}
+We use a list of struct sector_cache to hold the information of 64 sector cache. And each time,  we keep the oldest elem in the head of list, and newest in the tail of list. For instance, if we visit a sector, we will delete the elem from the list, and append it in the tail.
+
+4) Describe how your cache replacement algorithm chooses a cache block to evict.
+
+
+We can probably just use LRU as our replacement policy. This is because with file system caching we can afford the overhead that comes with LRU. We’ll iterate over the list of 64 sectors we have in our cache and check the associated metadata to find the least recently used sector, which we will evict.
+
+5) An optional part of this project is making your buffer cache periodically flush dirty blocks to disk. Describe a possible implementation strategy for this feature.
+
+We can implement a cache_flush() function that checks the metadata on the sectors and then flushes them to disk if the dirty bit is set.  In addition, we will implement a thread that simply loops infinitely while calling cache_flush() and then sleeps for a set amount of time.  
+
+6) An optional part of this project is implementing read-ahead caching for files in your buffer cache. Describe a possible implementation strategy for this feature.
+
+
+We use a read_ahead_task_list to store all the read-ahead tasks. And we use another thread to do the read-ahead, which will run the tasks on this list one by one. Each time, when we read a file by inode_read_at(), we check whether we need to read-ahead, i.e. if more blocks are needed to read, we put these read tasks on the read_ahead_task_list.
+
+Since two threads are operating on the same list, we will use a lock keep the list safe.
+
+7) When one process is actively reading or writing data in a buffer cache block, how are other processes prevented from evicting that block?
+
+In struct sector_cache, we have a field keeping track of the number of processes actively using this sector. When one process starts reading or writing this sector, it acquires the pin_cnt_lock and increments the pin_cnt and then releases pin_cnt_lock. When the process finishes reading or writing this sector, it acquires the pin_cnt_lock and decrements the pin_cnt and then releases pin_cnt_lock. A sector cannot be evicted when its pin_cnt is not zero. Thus when a process is actively using a sector, other process cannot evict this sector.
+
+8) During the eviction of a block from the cache, how are other processes prevented from attempting to access the block?
+
+
+When a process is evicting a sector_cache, it will first check that pin_cnt is 0 to ensure that no process is actively using this sector. If the pin_cnt is 0, it will acquire the pin_cnt_lock and start evicting this sector. Since a process that wants to actively use a sector needs to first acquire pin_cnt_lock, no process can start actively using this sector when eviction started. The process doing the eviction will release pin_cnt_lock after eviction and set field valid to 0 meaning invalid.
+
+Indexed and Extensible Files
+============================
+
+9) Copy here the declaration of each new or changed 'struct' or 'struct' member, global or static variable, 'typedef', or enumeration. Identify the purpose of each in 25 words or less.
+
+struct inode_disk {
+block_sector_t start; /* First data sector. */ 
+off_t length; /* File size in bytes. */ 
+block_sector_t direct[12]; 
+block_sector_t indirect[3]; /* 1 two level, and 2 one level */
+unsigned magic; /* Magic number. */ 
+uint32_t unused[110]; /* Not used. */ 
+};
+
+struct inode {
+	struct lock extend_lock; /* To allow mutual exclusion for extension */
+	struct lock length_lock; /* Lock for protecting length */
+}
+
+10) What is the maximum size of a file supported by your inode structure? Show your work.
+	The max file we support is:
+	12 * 512B (directly pointer) + 2* 512B/4B * 512B (2 level one indirect pointer) + 1 * (512/4)^2 *512B (1 level two indirect pointer )=  8.5MB
+
+11) Explain how your code avoids a race if two processes attempt to extend a file at the same time.
+
+We use a lock at each In-memory inode, when a processes is trying to extend the file, it will acquire the lock, and when it finishes it will release it.
+
+12) Suppose processes A and B both have file F open, both positioned at end-of-file. If A reads and B writes F at the same time, A may read all, part, or none of what B writes. However, A may not read data other than what B writes, e.g. if B writes nonzero data, A is not allowed to see all zeros. Explain how your code avoids this race.
+
+We use another lock at each In-memory inode for accessing the length of the inode_disk. If a process is writing to extend the file, it will update the length with grabbing lock after finishing the extension. Any thread who wants read the length, needs to grab the lock.
+
+13) Is your synchronization design "fair"? If so, explain how your synchronization design provides fairness. If not, explain how you could add fairness to your design. File access is "fair" if readers cannot indefinitely block writers or vice versa. That is, many processes reading from a file cannot prevent forever another process from writing the file, and many processes writing to a file cannot prevent another process forever from reading the file.
+
+It’s fair, since there is no really long block for any thread.
+
+14) Is your inode structure a multilevel index? If so, why did you choose this particular combination of direct, indirect, and doubly indirect blocks? If not, why did you choose an alternative inode structure, and what advantages and disadvantages does your structure have, compared to a multilevel index?
+
+Since we need to support the file whose size is as large as 8MB, with the help of our two level and one level indirect pointer, we can support 8.5MB file. With 12 direct pointer, we can access the file very fast, and with two level indirect pointer, it can support large file.
+
+Subdirectories
+==============
+
+15) Copy here the declaration of each new or changed 'struct' or 'struct' member, global or static variable, 'typedef', or enumeration. Identify the purpose of each in 25 words or less.
+
+
+struct thread 
+{
+	struct dir *curr_dir; /* Current directory for the thread */
+}
+
+struct dir_entry 
+  {
+    block_sector_t inode_sector;        /* Sector number of header. */
+    char name[NAME_MAX + 1];            /* Null terminated file name. */
+    bool in_use;                        /* In use or free? */
+    bool is_dir;			/* is a dir or a file */
+    struct lock lock_del;	/* lock to prevent data racing for multiple delete */
+  };
+struct dir 
+  {
+    struct inode *inode;                /* Backing store. */
+    off_t pos;                          /* Current position. */
+    struct lock lock_cnf;	/* protect the cnf */
+    int cnf; 			/* count the number of process open this dir*/
+  };
+
+16) Describe your code for traversing a user-specified path. How do traversals of absolute and relative paths differ?
+
+The difference of traversal of an absolute and relative path is that: an absolute path start to traversal at dir_open (inode_open (ROOT_DIR_SECTOR)), but a relative path traversal starts at current_thread()->curr_dir. 
+
+Before we traversal, we parse the path by “/”. Then for each level we look up the corresponding dir by:
+while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
+to check whether the dir_entry’s name is the same as the the name at this level, and whether it’s a dir. For the last level, we will check it’s the file or dir depending on what we are looking for. 
+
+17) How do you prevent races on directory entries? For example, only one of two simultaneous attempts to remove a single file should succeed, as should only one of two simultaneous attempts to create a file with the same name, and so on.
+
+We will add a lock at the dir_entry struct. So when we call filesys_remove (const char *name), we will find the corresponding dir_entry. And grab the lock on the dir_entry struct, after we finish delete the file, we will set the dir_entry in_use to be false, and release lock. Then when another thread acquire the lock, it will check the in_use first before it really delete the file.
+
+18) Does your implementation allow a directory to be removed if it is open by a process or if it is in use as a process's current working directory? If so, what happens to that process's future file system operations? If not, how do you prevent it?
+
+We add a lock and a int cnf at the struct dir, the cnf will record the number of the process which open this dir, and the lock is used to protect revising this cnf. Only the cnf = 0, we can delete the dir. 
+
+19) Explain why you chose to represent the current directory of a process the way you did.
+
+Since a process only has one current directory, it’s OK that we use a single struct dir pointer to record the current dir. 
+
+Student Testing
+===============
+
+20) Describe your testing plan for your buffer cache. For each of your two test cases, describe how your test works, describe the expected output, and if you need any new syscalls to support your test, describe them.
+
+Test 1
+This test will be to test that the buffer cache improves our efficiency.  We start with an empty buffer cache, open a short dummy file (maybe 4-5 blocks long) and read it sequentially.  Then we output the cold cache hit rate.  Then we close the file, re-open it, and read it sequentially again and output the cache hit rate.  Ideally we expect the output of the cache hit rate to go up the second time. We shouldn’t need any new syscalls to test this buffer cache.
+
+Test 2
+This test will be testing blind writes on whole blocks. When a blind write on a whole block occurs on a block that has not been paged into the buffer cache, we should be able to directly write in the cache and not actually page in the block. Specifically, we could do blind writes on whole blocks and check the read_cnt and write_cnt of the block device to ensure that only writes occurred.
