@@ -14,7 +14,7 @@
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
   {
-    block_sector_t start;               /* First data sector. */
+    block_sector_t start;               /* First data sector. uint32_t, id of the sector number */
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
     uint32_t unused[125];               /* Not used. */
@@ -137,7 +137,7 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  block_read (fs_device, inode->sector, &inode->data);
+  block_read (fs_device, inode->sector, &inode->data);  // read disk inode from sector
   return inode;
 }
 
@@ -154,7 +154,7 @@ inode_reopen (struct inode *inode)
 block_sector_t
 inode_get_inumber (const struct inode *inode)
 {
-  return inode->sector;
+  return inode->sector;   // inode num is the sector num
 }
 
 /* Closes INODE and writes it to disk.
@@ -227,6 +227,10 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
         }
       else 
         {
+          // this means that the data we read not from the 
+          // beginning of the sector. we need to copy the
+          // data into a buffer: bounce, then copy the data from bounce
+          // to our real data
           /* Read sector into bounce buffer, then partially copy
              into caller's buffer. */
           if (bounce == NULL) 
