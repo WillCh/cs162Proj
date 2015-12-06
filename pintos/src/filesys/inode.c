@@ -257,6 +257,10 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  // add by haoyu
+  // init the lock
+  lock_init (&inode->extend_lock);
+  lock_init (&inode->length_lock);
   // Haoyu Change to the buffer's api
   // block_read (fs_device, inode->sector, &inode->data);  // read disk inode from sector
   // printf("before buffer read in inode open\n");
@@ -295,11 +299,12 @@ inode_close (struct inode *inode)
     {
       /* Remove from inode list and release lock. */
       list_remove (&inode->elem);
- 
+      
       /* Deallocate blocks if removed. */
       if (inode->removed) 
         {
           free_map_release (inode->sector, 1);
+          // remove every data
           free_map_release (inode->data.start,
                             bytes_to_sectors (inode->data.length)); 
         }
