@@ -56,7 +56,7 @@ static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) 
 {
   ASSERT (inode != NULL);
-  if (pos < inode->data.length)
+  if (pos < inode->data.length) {
     int index = pos / BLOCK_SECTOR_SIZE;
     if (index < DIR_LEN) {
       return inode->data.dir[index];
@@ -91,8 +91,9 @@ byte_to_sector (const struct inode *inode, off_t pos)
       free(tmp_buf);
       return res;
     }
-  else
-    return -1;
+  } else {
+    return -1;    
+  }
 }
 
 /* List of open inodes, so that opening a single inode twice
@@ -200,6 +201,7 @@ inode_create (block_sector_t sector, off_t length)
       free (tmpsect_1st);
       free (tmpsect_2nd);
       free (tmpsect_2level_1);
+      free (cur_sector);
       success = true; 
     }
       /**
@@ -305,8 +307,67 @@ inode_close (struct inode *inode)
         {
           free_map_release (inode->sector, 1);
           // remove every data
-          free_map_release (inode->data.start,
-                            bytes_to_sectors (inode->data.length)); 
+          struct inode_disk *disk_inode = &inode->data;
+          int index = disk_inode->length / BLOCK_SECTOR_SIZE;
+          int i = 0;
+          block_sector_t *tmpsect_1st = NULL;
+          block_sector_t *tmpsect_2nd = NULL;
+          block_sector_t *tmpsect_2level_1 = NULL;
+
+          if (index >= DIR_LEN) {
+            // 1st indir
+            tmpsect_1st = calloc(1, BLOCK_SECTOR_SIZE);
+            buffer_read (fs_device, disk_inode->single_indir[0], tmpsect_1st);
+            free_map_release (disk_inode->single_indir[0], 1);
+          } 
+          if (index >= DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
+            // 2nd indir
+            tmpsect_2nd = calloc(1, BLOCK_SECTOR_SIZE);
+            buffer_read (fs_device, disk_inode->single_indir[1], tmpsect_2nd);
+            free_map_release (disk_inode->single_indir[1], 1);
+          }
+          if (index >= DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4) {
+            tmpsect_2level_1 = calloc(1, BLOCK_SECTOR_SIZE);
+            buffer_read (fs_device, disk_inode->double_indir, tmpsect_2level_1);
+            free_map_release (disk_inode->double_indir, 1);
+          }
+
+          block_sector_t *cur_sector = NULL;
+          for (i = 0; i < index; i++) {
+            if (i < DIR_LEN) {
+              free_map_release (disk_inode->dir[i], 1);
+            } 
+            if (i >= DIR_LEN) {
+              // 1st 1-level
+              int index_1st_level = i - DIR_LEN;
+              free_map_release (tmpsect_1st[index_1st_level], 1);
+            }
+            if (i >= DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
+              int index_1st_level = i - DIR_LEN - BLOCK_SECTOR_SIZE / 4;
+              free_map_release (tmpsect_2nd[index_1st_level], 1);
+            }
+            if (i >= 2 * DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
+              int index_1st_level = i - DIR_LEN - 2 * BLOCK_SECTOR_SIZE / 4;
+              int tmp_index = index_1st_level / (BLOCK_SECTOR_SIZE / 4);
+              int tmp_index2 = index_1st_level % (BLOCK_SECTOR_SIZE / 4);
+              if (tmp_index2 == 0) {
+                cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
+                buffer_read (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
+              }
+              free_map_release (cur_sector[tmp_index2], 1);
+              if (tmp_index2 == BLOCK_SECTOR_SIZE / 4 - 1) {
+                free_map_release (tmpsect_2level_1[tmp_index], 1);
+              } else if (i == index - 1) {
+                free_map_release (tmpsect_2level_1[tmp_index], 1);
+              }
+            }
+          free (tmpsect_1st);
+          free (tmpsect_2nd);
+          free (tmpsect_2level_1);
+          free (cur_sector);
+          }
+          // free_map_release (inode->data.start,
+          //                   bytes_to_sectors (inode->data.length)); 
         }
 
       free (inode); 
