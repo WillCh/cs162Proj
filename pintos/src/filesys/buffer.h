@@ -19,8 +19,6 @@ struct sector_cache
   	struct sector *sector_location; /* location of the sector, which holds data */
     bool valid; 					/* whether this sector is valid */
     bool dirty;						/* whether this sector is dirty */
-    int pin_cnt;					/* number of the files related to this sector */
-    struct lock pin_cnt_lock;		/* lock to make revise pin_cnt safely */
   };
 
 /* Init the buffer system */

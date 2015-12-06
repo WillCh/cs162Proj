@@ -41,11 +41,10 @@ buffer_init(void)
     iter->valid = false;
     iter->dirty = false;
     iter->sector_location = sector_entry + i;
-    lock_init (&(iter->pin_cnt_lock));
     list_push_front (&open_sectors, &(iter->cache_elem));
   }
   lock_init (&list_revise_lock);
-  printf("finish the init of buffer\n");
+  // printf("finish the init of buffer\n");
   return true;
 }
 
@@ -133,7 +132,7 @@ buffer_write (struct block *block, block_sector_t sector, const void *buffer)
   // since when we iterate the list, another thread may revise its
   // structure.... so here I only allow one thread to use this list
   // per time
-  printf("inside buffer_write\n");
+  // printf("inside buffer_write\n");
   lock_acquire (&list_revise_lock);
   bool finished = false;
   for (e = list_begin (&open_sectors); e != list_end (&open_sectors);
@@ -144,7 +143,7 @@ buffer_write (struct block *block, block_sector_t sector, const void *buffer)
       if (cache_entry->valid) {
         if (cache_entry->sector_id == sector && 
           cache_entry->block_id == block) {
-          printf("find a buffer\n");
+          // printf("find a buffer\n");
           // find a matched cache
           memcpy (cache_entry->sector_location, buffer, sizeof(*(cache_entry->sector_location)));
           // put the sector to the head of the list
@@ -161,7 +160,7 @@ buffer_write (struct block *block, block_sector_t sector, const void *buffer)
       }
     }
   if (!finished) {
-    printf("write to the disk\n");
+    // printf("write to the disk\n");
     // need to read from the real device and insert to the responding block
     if (e == list_end (&open_sectors)) {
       e = list_pop_back (&open_sectors);
@@ -177,7 +176,8 @@ buffer_write (struct block *block, block_sector_t sector, const void *buffer)
     }
 
     // then write the data to this buffer
-    block_write (block, sector, (void*)(cache_entry->sector_location));
+    memcpy (cache_entry->sector_location, buffer, sizeof(*(cache_entry->sector_location)));
+    // block_write (block, sector, (void*)(cache_entry->sector_location));
     cache_entry->valid = true;
     cache_entry->dirty = true;
     cache_entry->block_id = block;

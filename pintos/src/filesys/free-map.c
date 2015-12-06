@@ -73,7 +73,7 @@ void
 free_map_create (void) 
 {
   /* Create inode. */
-  printf("inside free_map_create\n");
+  // printf("inside free_map_create\n");
   if (!inode_create (FREE_MAP_SECTOR, bitmap_file_size (free_map)))
     PANIC ("free map creation failed");
   // printf("finish create the inode of free map sector\n");
@@ -83,5 +83,5 @@ free_map_create (void)
     PANIC ("can't open free map");
   if (!bitmap_write (free_map, free_map_file))
     PANIC ("can't write free map");
-  printf("finish free_map_create\n");
+  // printf("finish free_map_create\n");
 }
