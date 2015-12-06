@@ -11,14 +11,20 @@
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
 
+#define DIR_LEN 123
+
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
   {
-    block_sector_t start;               /* First data sector. uint32_t, id of the sector number */
+    // block_sector_t start;               /* First data sector. uint32_t, id of the sector number */
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
-    uint32_t unused[125];               /* Not used. */
+    block_sector_t dir[DIR_LEN];
+    block_sector_t single_indir[2];
+    block_sector_t double_indir;
+    // uint32_t unused[125];               /* Not used. */
+  
   };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -38,6 +44,8 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct inode_disk data;             /* Inode content. */
+    struct lock extend_lock;
+    struct lock length_lock;
   };
 
 /* Returns the block device sector that contains byte offset POS
@@ -49,7 +57,40 @@ byte_to_sector (const struct inode *inode, off_t pos)
 {
   ASSERT (inode != NULL);
   if (pos < inode->data.length)
-    return inode->data.start + pos / BLOCK_SECTOR_SIZE;
+    int index = pos / BLOCK_SECTOR_SIZE;
+    if (index < DIR_LEN) {
+      return inode->data.dir[index];
+    } else if (index < DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
+      // 1 level indir case
+      // read from the device
+      block_sector_t *tmp_buf = calloc(1, BLOCK_SECTOR_SIZE);
+      buffer_read (fs_device, inode->data.single_indir[0], tmp_buf);
+      block_sector_t res = tmp_buf[index - DIR_LEN];
+      free(tmp_buf);
+      return res;
+
+    } else if (index < DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4) {
+      // 2nd 1 level indir case
+      block_sector_t *tmp_buf = calloc(1, BLOCK_SECTOR_SIZE);
+      buffer_read (fs_device, inode->data.single_indir[1], tmp_buf);
+      block_sector_t res = tmp_buf[index - DIR_LEN - BLOCK_SECTOR_SIZE / 4];
+      free(tmp_buf);
+      return res;
+
+    } else {
+      block_sector_t *tmp_buf = calloc(1, BLOCK_SECTOR_SIZE);
+      buffer_read (fs_device, inode->data.double_indir, tmp_buf);
+      index = index - (DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4);
+      int tmp_index = index / (BLOCK_SECTOR_SIZE / 4);
+      int tmp_index2 = index % (BLOCK_SECTOR_SIZE / 4);
+
+      // read the 2nd level
+      block_sector_t id_2level = tmp_buf[tmp_index];
+      buffer_read (fs_device, id_2level, tmp_buf);
+      block_sector_t res = tmp_buf[tmp_index2];
+      free(tmp_buf);
+      return res;
+    }
   else
     return -1;
 }
@@ -88,6 +129,80 @@ inode_create (block_sector_t sector, off_t length)
       size_t sectors = bytes_to_sectors (length);
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
+      int index = length / BLOCK_SECTOR_SIZE;
+      int i = 0;
+      static char zeros[BLOCK_SECTOR_SIZE];
+      block_sector_t *tmpsect_1st = NULL;
+      block_sector_t *tmpsect_2nd = NULL;
+      block_sector_t *tmpsect_2level_1 = NULL;
+
+      if (index >= DIR_LEN) {
+        // 1st indir
+        free_map_allocate (1, &(disk_inode->single_indir[0]));
+        tmpsect_1st = calloc(1, BLOCK_SECTOR_SIZE);
+      } 
+      if (index >= DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
+        // 2nd indir
+        free_map_allocate (1, &(disk_inode->single_indir[1]));
+        tmpsect_2nd = calloc(1, BLOCK_SECTOR_SIZE);
+      }
+      if (index >= DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4) {
+
+        free_map_allocate (1, &(disk_inode->double_indir));
+        tmpsect_2level_1 = calloc(1, BLOCK_SECTOR_SIZE);
+        int tmp_index = index - (DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4);
+        int tmp_index2 = tmp_index / (BLOCK_SECTOR_SIZE / 4);
+        for (i = 0; i <= tmp_index2; i++) {
+          free_map_allocate (1, &(tmpsect_2level_1[i]));
+        }
+        buffer_write (fs_device, disk_inode->double_indir, tmpsect_2level_1);
+      }
+      // alloc the data sector
+      block_sector_t *cur_sector = NULL;
+      for (i = 0; i < index; i++) {
+        if (i < DIR_LEN) {
+          free_map_allocate (1, &(disk_inode->dir[i]));
+          buffer_write (fs_device, disk_inode->dir[i], zeros);
+        } 
+        if (i >= DIR_LEN) {
+          // 1st 1-level
+          int index_1st_level = i - DIR_LEN;
+          free_map_allocate (1, &(tmpsect_1st[index_1st_level]));
+          buffer_write (fs_device, tmpsect_1st[index_1st_level] ,zeros);
+        }
+        if (i >= DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
+          int index_1st_level = i - DIR_LEN - BLOCK_SECTOR_SIZE / 4;
+          free_map_allocate (1, &(tmpsect_2nd[index_1st_level]));
+          buffer_write (fs_device, tmpsect_2nd[index_1st_level] ,zeros);
+        }
+        if (i >= 2 * DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
+          int index_1st_level = i - DIR_LEN - 2 * BLOCK_SECTOR_SIZE / 4;
+          int tmp_index = index_1st_level / (BLOCK_SECTOR_SIZE / 4);
+          int tmp_index2 = index_1st_level % (BLOCK_SECTOR_SIZE / 4);
+          if (tmp_index2 == 0) {
+            cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
+          }
+          free_map_allocate (1, &(cur_sector[tmp_index2]));
+          buffer_write (fs_device, cur_sector[tmp_index2], zeros);
+          if (tmp_index2 == BLOCK_SECTOR_SIZE / 4 - 1) {
+            buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
+          } else if (i == index - 1) {
+            buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
+          }
+        } 
+      }
+      if (tmpsect_1st != NULL) {
+        buffer_write (fs_device, disk_inode->single_indir[0], tmpsect_1st);
+      }
+      if (tmpsect_2nd != NULL) {
+        buffer_write (fs_device, disk_inode->single_indir[1], tmpsect_2nd);
+      }
+      free (tmpsect_1st);
+      free (tmpsect_2nd);
+      free (tmpsect_2level_1);
+      success = true; 
+    }
+      /**
       if (free_map_allocate (sectors, &disk_inode->start)) 
         {
           // revised by haoyu
@@ -106,7 +221,7 @@ inode_create (block_sector_t sector, off_t length)
           success = true; 
         } 
       free (disk_inode);
-    }
+    } **/
   return success;
 }
 
