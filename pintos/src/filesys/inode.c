@@ -57,7 +57,8 @@ static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) 
 {
   ASSERT (inode != NULL);
-  printf("inside bytosector, pos is %d, len is %d\n", pos, inode->data.length);
+  // printf("inside bytosector, sector is %d ,pos is %d, len is %d\n",
+  // inode->sector, pos, inode->data.length);
   if (pos < inode->data.length) {
     int index = pos / BLOCK_SECTOR_SIZE;
     if (index < DIR_LEN) {
@@ -118,7 +119,8 @@ inode_init (void)
 bool
 inode_create (block_sector_t sector, off_t length)
 {
-  // printf("inside inode create, the len is %d\n", length);
+  // printf("inside inode create, the len is %d the sector is %d\n",
+  // length, sector);
   struct inode_disk *disk_inode = NULL;
   bool success = false;
 
@@ -141,9 +143,10 @@ inode_create (block_sector_t sector, off_t length)
       block_sector_t *tmpsect_1st = NULL;
       block_sector_t *tmpsect_2nd = NULL;
       block_sector_t *tmpsect_2level_1 = NULL;
-
+      // printf("inside inode create the index is %d\n", index);
       // alloc the space for the internel pages
       if (index >= DIR_LEN) {
+        // printf("inside the inode create has indir pnt\n");
         // 1st indir
         free_map_allocate (1, &(disk_inode->single_indir[0]));
         tmpsect_1st = calloc(1, BLOCK_SECTOR_SIZE);
@@ -166,7 +169,7 @@ inode_create (block_sector_t sector, off_t length)
       }
       // alloc the data sector
       block_sector_t *cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
-      for (i = 0; i < index; i++) {
+      for (i = 0; i <= index; i++) {
         if (i < DIR_LEN) {
           free_map_allocate (1, &(disk_inode->dir[i]));
           buffer_write (fs_device, disk_inode->dir[i], zeros);
@@ -207,6 +210,10 @@ inode_create (block_sector_t sector, off_t length)
       if (tmpsect_1st != NULL) {
         buffer_write (fs_device, disk_inode->single_indir[0], tmpsect_1st);
       }
+      // printf("the inode pnter is: \n");
+      // for (i = 0; i < DIR_LEN; i++) {
+      //  printf("%d\n", disk_inode->dir[i]);
+      // }
       if (tmpsect_2nd != NULL) {
         buffer_write (fs_device, disk_inode->single_indir[1], tmpsect_2nd);
       }
@@ -267,7 +274,7 @@ inode_open (block_sector_t sector)
   /* Allocate memory. */
   inode = malloc (sizeof *inode);
   if (inode == NULL) {
-    printf(" bugs in the inode open 1\n");
+    // printf(" bugs in the inode open 1\n");
     return NULL;
   }
     
@@ -286,9 +293,9 @@ inode_open (block_sector_t sector)
   // block_read (fs_device, inode->sector, &inode->data);  // read disk inode from sector
   // printf("before buffer read in inode open\n");
   buffer_read (fs_device, inode->sector, &inode->data);
-  if (inode == NULL) {
-    printf(" bugs in the inode open\n");
-  }
+  // if (inode == NULL) {
+  //  printf(" bugs in the inode open\n");
+  // }
   return inode;
 }
 
@@ -361,7 +368,7 @@ inode_close (struct inode *inode)
           block_sector_t *cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
 
           // free the data 
-          for (i = 0; i < index; i++) {
+          for (i = 0; i <= index; i++) {
             if (i < DIR_LEN) {
               free_map_release (disk_inode->dir[i], 1);
             } else if (i < DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
@@ -424,7 +431,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     {
       /* Disk sector to read, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset);
-      printf(" inside the inode read, the sector id is %d\n", sector_idx);
+      //printf(" inside the inode read, the sector id is %d\n", sector_idx);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
@@ -470,7 +477,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       bytes_read += chunk_size;
     }
   free (bounce);
-  printf("inside inode read, the size we read is %d\n", bytes_read);
+  // printf("inside inode read, the size we read is %d\n", bytes_read);
   return bytes_read;
 }
 
@@ -483,6 +490,7 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
 {
+  // printf("inside inode write, sector: %d\n", inode->sector);
   // printf("beg of inode write\n");
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;

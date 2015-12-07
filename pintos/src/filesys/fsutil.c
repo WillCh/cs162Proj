@@ -72,7 +72,7 @@ void
 fsutil_extract (char **argv UNUSED) 
 {
   static block_sector_t sector = 0;
-
+  // printf("begin of fsutile extract CHY\n");
   struct block *src;
   void *header, *data;
 
@@ -114,11 +114,12 @@ fsutil_extract (char **argv UNUSED)
         {
           struct file *dst;
 
-          printf ("Putting '%s' into the file system...\n", file_name);
+          // printf ("Putting '%s' into the file system...\n", file_name);
 
           /* Create destination file. */
           if (!filesys_create (file_name, size))
             PANIC ("%s: create failed", file_name);
+          // printf("finish create file sys %s, size: %d HYC\n", file_name, size);
           dst = filesys_open (file_name);
           if (dst == NULL)
             PANIC ("%s: open failed", file_name);
@@ -133,6 +134,7 @@ fsutil_extract (char **argv UNUSED)
               if (file_write (dst, data, chunk_size) != chunk_size)
                 PANIC ("%s: write failed with %d bytes unwritten",
                        file_name, size);
+              // printf("write %d bytes for file: %s CHY\n", size, file_name);
               size -= chunk_size;
             }
 

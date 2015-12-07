@@ -356,7 +356,6 @@ bool
 bitmap_write (const struct bitmap *b, struct file *file)
 {
   off_t size = byte_cnt (b->bit_cnt);
-  printf("the size we want to write is %d\n", size);
   return file_write_at (file, b->bits, size, 0) == size;
 }
 #endif /* FILESYS */
