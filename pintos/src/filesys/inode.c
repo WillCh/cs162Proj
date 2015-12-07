@@ -395,11 +395,11 @@ inode_close (struct inode *inode)
                 free_map_release (tmpsect_2level_1[tmp_index], 1);
               }
             }
+          }
           free (tmpsect_1st);
           free (tmpsect_2nd);
           free (tmpsect_2level_1);
           free (cur_sector);
-          }
           // free_map_release (inode->data.start,
           //                   bytes_to_sectors (inode->data.length)); 
         }
