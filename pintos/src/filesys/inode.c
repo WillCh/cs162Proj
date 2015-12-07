@@ -13,6 +13,8 @@
 
 #define DIR_LEN 123
 
+static block_sector_t
+byte_to_sector_helper (const struct inode *inode, off_t pos, int len);
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
@@ -56,10 +58,17 @@ struct inode
 static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) 
 {
+  int len = inode_length (inode);
+  return byte_to_sector_helper (inode, pos, len);
+}
+
+static block_sector_t
+byte_to_sector_helper (const struct inode *inode, off_t pos, int len) 
+{
   ASSERT (inode != NULL);
   // printf("inside bytosector, sector is %d ,pos is %d, len is %d\n",
   // inode->sector, pos, inode->data.length);
-  if (pos < inode->data.length) {
+  if (pos < len) {
     int index = pos / BLOCK_SECTOR_SIZE;
     if (index < DIR_LEN) {
       return inode->data.dir[index];
@@ -507,8 +516,8 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       // printf("inside the write while\n");
       /* Sector to write, starting byte offset within sector. */
       // printf(" the data len is %d\n", inode->data.length);
-      block_sector_t sector_idx = byte_to_sector (inode, offset);
-      // printf("the sector id is %d \n", sector_idx);
+      // block_sector_t sector_idx = byte_to_sector (inode, offset);
+      block_sector_t sector_idx = byte_to_sector_helper (inode, offset, newLen);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
