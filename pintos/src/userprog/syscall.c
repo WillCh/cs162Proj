@@ -275,6 +275,59 @@ syscall_handler (struct intr_frame *f UNUSED)
     tid_t tid = (int) (args[1]);
     f->eax = process_wait(tid);
   }
+  else if (args[0] == SYS_MKDIR)
+  {
+    if(!is_args_valid(2, args))
+    {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
+    char* name = (char*) (args[1]);
+    struct thread *t = thread_current ();
+    uint32_t *pd = t->pagedir;
+    bool is_valid = is_valid_pointer(pd, name, 0);
+    if (!is_valid) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
+    // printf("inside mkdir, %s\n", name);
+    bool res = filesys_create_dir (name);
+    f->eax = res;
+  }
+  else if (args[0] == SYS_CHDIR)
+  {
+    if(!is_args_valid(2, args))
+    {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
+    char* name = (char*) (args[1]);
+    struct thread *t = thread_current ();
+    uint32_t *pd = t->pagedir;
+    bool is_valid = is_valid_pointer(pd, name, 0);
+    if (!is_valid) {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
+    struct dir *dir = filesys_open_directory (name);
+    if (dir == NULL) {
+      f->eax = false;
+    } else {
+      if (t->curr_dir != NULL) {
+        dir_close(t->curr_dir);
+        t->curr_dir = dir;
+        f->eax = true;
+      }
+    }
+  }
+  else if (args[0] == SYS_READDIR)
+  {
+
+  }
+  else if (args[0] == SYS_ISDIR)
+  {
+
+  }
 }
 
 /**

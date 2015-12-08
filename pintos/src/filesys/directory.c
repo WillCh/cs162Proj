@@ -166,6 +166,13 @@ entry_lookup (const struct dir *dir, const char *name,
 bool
 dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 {
+  return dir_add_directory (dir, name, inode_sector, false);
+}
+
+bool
+dir_add_directory (struct dir *dir, const char *name,
+   block_sector_t inode_sector, bool is_dir)
+{
   struct dir_entry e;
   off_t ofs;
   bool success = false;
@@ -195,6 +202,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
 
   /* Write slot. */
   e.in_use = true;
+  e.is_dir = is_dir;
   strlcpy (e.name, name, sizeof e.name);
   e.inode_sector = inode_sector;
   success = inode_write_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
@@ -220,7 +228,11 @@ dir_remove (struct dir *dir, const char *name)
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
     goto done;
-
+  // check if it's a dir and empty
+  if (e.is_dir && (dir_sizeof(&e) != 0)) {
+    goto done;
+  }
+    // TODO: write fun to count the dir entry
   /* Open inode. */
   inode = inode_open (e.inode_sector);
   if (inode == NULL)
@@ -258,4 +270,30 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         } 
     }
   return false;
+}
+
+// return number of files under this directory
+int
+dir_sizeof (struct dir_entry *dir_entry)
+{ 
+  struct inode *inode = inode_open (dir_entry->inode_sector);
+  struct dir_entry e;
+  size_t ofs;
+  char *name1 = ".";
+  char *name2 = "..";
+  if (dir_entry == NULL || !(dir_entry->is_dir)
+   || !(dir_entry->in_use)) return 0;
+  int res = 0;
+  for (ofs = 0; inode_read_at (inode, &e, sizeof e, ofs) == sizeof e;
+       ofs += sizeof e) {
+    // printf("the file is in use: %d, the name is %s\n",
+    //  e.in_use, e.name);
+    if (e.in_use && strcmp (name1, e.name)
+     && strcmp(name2, e.name)) 
+      {
+        res++;
+      }
+  }
+  inode_close (inode);
+  return res; 
 }

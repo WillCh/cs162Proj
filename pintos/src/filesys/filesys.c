@@ -43,6 +43,69 @@ get_next_part (char part[NAME_MAX + 1], const char **srcp) {
   return 1;
 }
 
+bool
+filesys_create_dir (const char *name) {
+  block_sector_t inode_sector = 0;
+  int initial_size = 512;
+  struct dir *dir = filesys_curr_dir();
+  // ABSOLUTE PATH
+  if (name[0] == '/') {
+    dir = dir_open_root ();
+  } else {
+    dir = dir_reopen (dir);
+  }
+
+  char part[NAME_MAX + 1];
+  part[0] = 0;
+  struct dir_entry entry;
+  bool success = true;
+  while (get_next_part(part, &name) == 1) {
+    if (entry_lookup(dir, part, &entry, NULL, 1)) {
+      struct inode *inode = inode_open (entry.inode_sector);
+      dir_close (dir);
+      dir = dir_open (inode);
+    } else {
+      success = false;
+      break;
+    }
+  }
+
+  if (success) {
+    success = (dir != NULL
+      && free_map_allocate (1, &inode_sector)
+      && inode_create (inode_sector, initial_size)
+      && dir_add_directory (dir, part, inode_sector, true));
+  //    && dir_add (dir, part, inode_sector));    
+  }
+  // find the parents inode_sector
+
+  // write the ../ dir_entry back to the inode
+  // printf("here %d, the entry name is %s, the cur name is %s\n",
+  // success, entry.name, part);
+  if (success) {
+    entry.inode_sector = inode_get_inumber(dir->inode);
+    strlcpy (&(entry.name), "..", strlen (".."));
+    // printf("finish str cpy %s, the sect num is %d\n",
+    //  entry.name, entry.inode_sector);
+    struct inode *inode = inode_open (inode_sector);
+    // printf("finish inode open\n");
+    inode_write_at(inode, &entry, sizeof (entry), 0);
+    // printf("finish the 1st write\n");
+    // write the ./ dir_entry back to the inode
+    strlcpy (&(entry.name), ".", strlen ("."));
+    entry.inode_sector = inode_sector;
+    inode_write_at(inode, &entry, sizeof (entry), sizeof (entry));
+    inode_close (inode);
+  }
+  
+  // printf("fisnih create file, the sector is %d\n", inode_sector);
+  if (!success && inode_sector != 0) 
+    free_map_release (inode_sector, 1);
+  dir_close (dir);
+  return success;
+}
+
+
 /* Initializes the file system module.
    If FORMAT is true, reformats the file system. */
 void
@@ -155,6 +218,44 @@ filesys_open (const char *name)
   }
   dir_close (dir);
   return file_open (inode);
+}
+
+struct dir *
+filesys_open_directory (const char *name)
+{
+  struct inode *inode = NULL;
+  struct dir *dir = filesys_curr_dir();
+  // ABSOLUTE PATH
+  if (name[0] == '/') {
+    dir = dir_open_root ();
+  } else {
+    dir = dir_reopen (dir);
+  }
+
+  char part[NAME_MAX + 1];
+  struct dir_entry entry;
+  bool success = true;
+  while (get_next_part(part, &name) == 1) {
+    if (entry_lookup(dir, part, &entry, NULL, 1)) {
+      struct inode *inode = inode_open (entry.inode_sector);
+      dir_close (dir);
+      dir = dir_open (inode);
+    } else {
+      success = false;
+      break;
+    }
+  }
+
+  if (success && entry_lookup(dir, part, &entry, NULL, 1)) {
+    struct inode *inode = inode_open (entry.inode_sector);
+    dir_close (dir);
+    dir = dir_open (inode);
+  } else {
+    dir_close (dir);
+    dir = NULL;
+  }
+
+  return dir;
 }
 
 /* Deletes the file named NAME.
