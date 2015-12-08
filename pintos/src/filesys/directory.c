@@ -6,20 +6,6 @@
 #include "filesys/inode.h"
 #include "threads/malloc.h"
 
-/* A directory. */
-struct dir 
-  {
-    struct inode *inode;                /* Backing store. */
-    off_t pos;                          /* Current position. */
-  };
-
-/* A single directory entry. */
-struct dir_entry 
-  {
-    block_sector_t inode_sector;        /* Sector number of header. it's a uint32_t */
-    char name[NAME_MAX + 1];            /* Null terminated file name. */
-    bool in_use;                        /* In use or free? */
-  };
 
 /* Creates a directory with space for ENTRY_CNT entries in the
    given SECTOR.  Returns true if successful, false on failure. */
@@ -137,6 +123,38 @@ dir_lookup (const struct dir *dir, const char *name,
     
 
   return *inode != NULL;
+}
+
+/* Finds an entry, which is either specified to be a directory
+or a file. */
+bool
+entry_lookup (const struct dir *dir, const char *name,
+        struct dir_entry *ep, off_t *ofsp, bool is_dir) 
+{
+  struct dir_entry e;
+  size_t ofs;
+  
+  ASSERT (dir != NULL);
+  ASSERT (name != NULL);
+
+  for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
+       ofs += sizeof e) {
+    // printf("the file is in use: %d, the name is %s\n",
+    //  e.in_use, e.name);
+    if (e.is_dir != is_dir)
+      continue;
+
+    if (e.in_use && !strcmp (name, e.name)) 
+      {
+        if (ep != NULL)
+          *ep = e;
+        if (ofsp != NULL)
+          *ofsp = ofs;
+        return true;
+      }
+  } 
+    
+  return false;
 }
 
 /* Adds a file named NAME to DIR, which must not already contain a

@@ -117,6 +117,9 @@ struct thread
 
   struct file * executable;
 
+  // ADDED BY HUGH
+  struct dir *curr_dir; /* Current directory for the thread */
+
   //
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
@@ -164,4 +167,5 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 struct wait_status* get_child_by_tid (struct thread *cur, tid_t tid);
+struct thread* get_thread_by_tid (tid_t tid);
 #endif /* threads/thread.h */

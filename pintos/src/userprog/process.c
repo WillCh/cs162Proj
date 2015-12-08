@@ -50,12 +50,16 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
+  struct thread *child = get_thread_by_tid(tid);
   struct thread *parent = thread_current();
+  // ADDED BY HUGH
+  child->curr_dir = parent->curr_dir;
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   else
   {
     struct wait_status *child_wait_status = get_child_by_tid(parent, tid);
+
     if(child_wait_status)
     {
       sema_down(&child_wait_status->load_finished);

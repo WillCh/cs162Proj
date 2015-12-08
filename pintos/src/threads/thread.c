@@ -472,9 +472,8 @@ init_thread (struct thread *t, const char *name, int priority)
   // call the init list for list of children wait struct
   list_init(&(t->children_wait_statuses));
 
-  /* init the wait status struct */
-
-
+  // Initialize the curr_dir to be NULL which represents root
+  t->curr_dir = NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -625,6 +624,25 @@ get_child_by_tid (struct thread *cur, tid_t tid)
   }
   return NULL;
 }
+
+// ADDED BY HUGH
+struct thread *
+get_thread_by_tid (tid_t tid) {
+
+  struct list_elem *e;
+  for (e = list_begin (&all_list); e != list_end (&all_list);
+       e = list_next (e))
+  {
+    struct thread *t = list_entry (e, struct thread, allelem);
+    if (t->tid == tid)
+    {
+      return t;
+    }
+  }
+  return NULL;
+
+}
+
 
 
 /* Offset of `stack' member within `struct thread'.
