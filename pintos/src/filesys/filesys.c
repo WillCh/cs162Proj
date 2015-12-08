@@ -83,8 +83,12 @@ filesys_create_dir (const char *name) {
   // printf("here %d, the entry name is %s, the cur name is %s\n",
   // success, entry.name, part);
   if (success) {
+    char name1[3];
+    name1[0] = '.'; name1[1] = '.'; name1[2] = 0;
+    char name2[2];
+    name2[0] = '.'; name2[1] = 0;
     entry.inode_sector = inode_get_inumber(dir->inode);
-    strlcpy (&(entry.name), "..", strlen (".."));
+    strlcpy (&(entry.name), name1, strlen (&(entry.name)));
     // printf("finish str cpy %s, the sect num is %d\n",
     //  entry.name, entry.inode_sector);
     struct inode *inode = inode_open (inode_sector);
@@ -92,7 +96,7 @@ filesys_create_dir (const char *name) {
     inode_write_at(inode, &entry, sizeof (entry), 0);
     // printf("finish the 1st write\n");
     // write the ./ dir_entry back to the inode
-    strlcpy (&(entry.name), ".", strlen ("."));
+    strlcpy (&(entry.name), name2, strlen (&(entry.name)));
     entry.inode_sector = inode_sector;
     inode_write_at(inode, &entry, sizeof (entry), sizeof (entry));
     inode_close (inode);

@@ -232,7 +232,6 @@ dir_remove (struct dir *dir, const char *name)
   if (e.is_dir && (dir_sizeof(&e) != 0)) {
     goto done;
   }
-    // TODO: write fun to count the dir entry
   /* Open inode. */
   inode = inode_open (e.inode_sector);
   if (inode == NULL)
@@ -286,8 +285,6 @@ dir_sizeof (struct dir_entry *dir_entry)
   int res = 0;
   for (ofs = 0; inode_read_at (inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) {
-    // printf("the file is in use: %d, the name is %s\n",
-    //  e.in_use, e.name);
     if (e.in_use && strcmp (name1, e.name)
      && strcmp(name2, e.name)) 
       {
