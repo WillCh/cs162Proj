@@ -160,22 +160,22 @@ inode_create (block_sector_t sector, off_t length)
       if (index >= DIR_LEN) {
         // printf("inside the inode create has indir pnt\n");
         // 1st indir
-        free_map_allocate (1, &(disk_inode->single_indir[0]));
+        success = free_map_allocate (1, &(disk_inode->single_indir[0]));
         tmpsect_1st = calloc(1, BLOCK_SECTOR_SIZE);
       } 
       if (index >= DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
         // 2nd indir
-        free_map_allocate (1, &(disk_inode->single_indir[1]));
+        success = free_map_allocate (1, &(disk_inode->single_indir[1]));
         tmpsect_2nd = calloc(1, BLOCK_SECTOR_SIZE);
       }
       if (index >= DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4) {
 
-        free_map_allocate (1, &(disk_inode->double_indir));
+        success = free_map_allocate (1, &(disk_inode->double_indir));
         tmpsect_2level_1 = calloc(1, BLOCK_SECTOR_SIZE);
         int tmp_index = index - (DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4);
         int tmp_index2 = tmp_index / (BLOCK_SECTOR_SIZE / 4);
         for (i = 0; i <= tmp_index2; i++) {
-          free_map_allocate (1, &(tmpsect_2level_1[i]));
+          success = free_map_allocate (1, &(tmpsect_2level_1[i]));
         }
         buffer_write (fs_device, disk_inode->double_indir, tmpsect_2level_1);
       }
@@ -183,16 +183,16 @@ inode_create (block_sector_t sector, off_t length)
       block_sector_t *cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
       for (i = 0; i <= index; i++) {
         if (i < DIR_LEN) {
-          free_map_allocate (1, &(disk_inode->dir[i]));
+          success = free_map_allocate (1, &(disk_inode->dir[i]));
           buffer_write (fs_device, disk_inode->dir[i], zeros);
         } else if (i < DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
           // 1st 1-level
           int index_1st_level = i - DIR_LEN;
-          free_map_allocate (1, &(tmpsect_1st[index_1st_level]));
+          success = free_map_allocate (1, &(tmpsect_1st[index_1st_level]));
           buffer_write (fs_device, tmpsect_1st[index_1st_level] ,zeros);
         } else if (i < DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4) {
           int index_1st_level = i - DIR_LEN - BLOCK_SECTOR_SIZE / 4;
-          free_map_allocate (1, &(tmpsect_2nd[index_1st_level]));
+          success = free_map_allocate (1, &(tmpsect_2nd[index_1st_level]));
           buffer_write (fs_device, tmpsect_2nd[index_1st_level] ,zeros);
         } else {
           // double director case
@@ -206,7 +206,7 @@ inode_create (block_sector_t sector, off_t length)
             // cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
           }
           
-          free_map_allocate (1, &(cur_sector[tmp_index2]));
+          success = free_map_allocate (1, &(cur_sector[tmp_index2]));
           buffer_write (fs_device, cur_sector[tmp_index2], zeros);
           if (tmp_index2 == BLOCK_SECTOR_SIZE / 4 - 1) {
             // last entry of the 2-level page
@@ -233,6 +233,7 @@ inode_create (block_sector_t sector, off_t length)
       free (tmpsect_2nd);
       free (tmpsect_2level_1);
       free (cur_sector);
+      free (zeros);
       // write back the inode
       buffer_write (fs_device, sector, disk_inode);
       success = true; 
@@ -483,6 +484,8 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 {
   // printf("inside inode write, sector: %d\n", inode->sector);
   // printf("beg of inode write\n");
+  // printf("size input: %d\n", size);
+  off_t original_size = size;
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
   uint8_t *bounce = NULL;
@@ -514,8 +517,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
       /* Number of bytes to actually write into this sector. */
       int chunk_size = size < min_left ? size : min_left;
-      if (chunk_size <= 0)
+      if (chunk_size <= 0) {
+        // printf("negative chunk size\n");
         break;
+      }
 
       if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
         {
@@ -530,8 +535,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
           if (bounce == NULL) 
             {
               bounce = malloc (BLOCK_SECTOR_SIZE);
-              if (bounce == NULL)
-                break;
+              if (bounce == NULL) {
+                // printf("malloc failed\n");
+                break;                
+              }
             }
 
           /* If the sector contains data before or after the chunk
@@ -561,8 +568,6 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   lock_release (&inode->length_lock);
   buffer_write (fs_device, inode->sector, disk_inode);
   free (bounce);
-  // printf("finish of inode write\n");
-  // printf("the byte wee write: %d\n", bytes_written);
   return bytes_written;
 }
 
@@ -679,6 +684,7 @@ inode_extend_length (struct inode *inode, off_t size,
     free (tmpsect_2nd);
     free (tmpsect_2level_1);
     free (cur_sector);
+    free (zeros);
     // change the inode length
     // lock_acquire (&inode->length_lock);
     // disk_inode->length = newLen;
