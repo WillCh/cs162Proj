@@ -48,6 +48,25 @@ buffer_init(void)
   return true;
 }
 
+// write back all the dirty sectors
+void 
+buffer_update_disk ()
+{
+  struct list_elem *e;
+  
+  lock_acquire (&list_revise_lock);
+  for (e = list_begin (&open_sectors); e != list_end (&open_sectors);
+       e = list_next (e))
+    {
+      struct sector_cache *cache_entry = list_entry 
+          (e, struct sector_cache, cache_elem);
+      if (cache_entry->valid && cache_entry->dirty) {
+        block_write(cache_entry->block_id, cache_entry->sector_id,
+         cache_entry->sector_location);
+      }
+    }
+}
+
 /* Reads sector SECTOR from BLOCK into BUFFER, which must
    have room for BLOCK_SECTOR_SIZE bytes.
    Internally synchronizes accesses to block devices, so external

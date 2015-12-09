@@ -27,7 +27,7 @@ bool buffer_init(void);
 /* Read and write */
 void buffer_read (struct block *block, block_sector_t sector, void *buffer);
 void buffer_write (struct block *block, block_sector_t sector, const void *buffer);
-
+void buffer_update_disk (void);
 
 
 #endif /* filesys/file.h */

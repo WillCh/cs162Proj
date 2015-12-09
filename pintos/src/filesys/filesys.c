@@ -142,6 +142,7 @@ filesys_init (bool format)
 void
 filesys_done (void) 
 {
+  buffer_update_disk ();
   free_map_close ();
 }
 
@@ -206,7 +207,6 @@ filesys_open (const char *name)
 {
   struct inode *inode = NULL;
   struct dir *dir = filesys_curr_dir();
-
   // ABSOLUTE PATH
   if (name[0] == '/') {
     dir = dir_open_root ();
