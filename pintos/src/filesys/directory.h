@@ -55,5 +55,7 @@ bool entry_lookup (const struct dir *dir, const char *name,
 bool dir_add_directory (struct dir *dir, const char *name,
    block_sector_t inode_sector, bool is_dir);
 int dir_sizeof (struct dir_entry *dir_entry);
+bool dir_lookup_files (const struct dir *dir, const char *name,
+            struct inode **inode);
 
 #endif /* filesys/directory.h */

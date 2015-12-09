@@ -15,6 +15,8 @@ void process_activate (void);
 struct fd_pair
 {
 	struct file *f;
+	struct dir *d;
+	bool is_dir;
 	int fd;
 	struct list_elem fd_elem;
 };

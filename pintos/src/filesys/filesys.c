@@ -88,7 +88,8 @@ filesys_create_dir (const char *name) {
     char name2[2];
     name2[0] = '.'; name2[1] = 0;
     entry.inode_sector = inode_get_inumber(dir->inode);
-    strlcpy (&(entry.name), name1, strlen (&(entry.name)));
+    entry.is_dir = true;
+    strlcpy (&(entry.name), name1, strlen (name1) + 1);
     // printf("finish str cpy %s, the sect num is %d\n",
     //  entry.name, entry.inode_sector);
     struct inode *inode = inode_open (inode_sector);
@@ -96,8 +97,9 @@ filesys_create_dir (const char *name) {
     inode_write_at(inode, &entry, sizeof (entry), 0);
     // printf("finish the 1st write\n");
     // write the ./ dir_entry back to the inode
-    strlcpy (&(entry.name), name2, strlen (&(entry.name)));
+    strlcpy (&(entry.name), name2, strlen (name2) + 1);
     entry.inode_sector = inode_sector;
+
     inode_write_at(inode, &entry, sizeof (entry), sizeof (entry));
     inode_close (inode);
   }
@@ -216,9 +218,12 @@ filesys_open (const char *name)
       break;
     }
   }
-
+  // printf("inside filesys_open, the name is %s\n", part);
   if (success) {
-    dir_lookup (dir, part, &inode);
+    dir_lookup_files (dir, part, &inode);
+  } else {
+    dir_close (dir);
+    return NULL;
   }
   dir_close (dir);
   return file_open (inode);

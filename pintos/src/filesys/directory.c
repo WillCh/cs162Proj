@@ -125,6 +125,25 @@ dir_lookup (const struct dir *dir, const char *name,
   return *inode != NULL;
 }
 
+bool dir_lookup_files (const struct dir *dir, const char *name,
+            struct inode **inode) 
+{
+  struct dir_entry e;
+
+  ASSERT (dir != NULL);
+  ASSERT (name != NULL);
+
+  if (entry_lookup (dir, name, &e, NULL, false))
+    *inode = inode_open (e.inode_sector);
+  else {
+    // printf(" inside dir_lookup, fail\n");
+    *inode = NULL;
+  }
+    
+
+  return *inode != NULL;
+}
+
 /* Finds an entry, which is either specified to be a directory
 or a file. */
 bool
@@ -229,6 +248,8 @@ dir_remove (struct dir *dir, const char *name)
   if (!lookup (dir, name, &e, &ofs))
     goto done;
   // check if it's a dir and empty
+  // print
+
   if (e.is_dir && (dir_sizeof(&e) != 0)) {
     goto done;
   }
@@ -262,7 +283,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
     {
       dir->pos += sizeof e;
-      if (e.in_use)
+      if (e.in_use && strcmp (e.name, ".") && strcmp (e.name, ".."))
         {
           strlcpy (name, e.name, NAME_MAX + 1);
           return true;
@@ -285,9 +306,11 @@ dir_sizeof (struct dir_entry *dir_entry)
   int res = 0;
   for (ofs = 0; inode_read_at (inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) {
+
     if (e.in_use && strcmp (name1, e.name)
      && strcmp(name2, e.name)) 
       {
+
         res++;
       }
   }

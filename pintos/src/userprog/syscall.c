@@ -10,13 +10,16 @@
 #include "filesys/file.h"
 #include "devices/input.h"
 #include "kernel/stdio.h"
+
+#include "filesys/directory.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 
 static void syscall_handler (struct intr_frame *);
 
 static struct fd_pair* get_file_pair(int fd, struct list *fd_list);
-static int find_free_fd (struct list *fd_list, struct file *file_pointer);
+static int find_free_fd (struct list *fd_list, struct file *file_pointer,
+  struct dir *dir_pointer, bool is_dir);
 static bool is_valid_pointer (uint32_t *pd, void* buffer, int32_t size);
 static bool is_args_valid(int num_args, uint32_t* args);
 static int32_t sys_write_handler (int fd, void* buffer, int32_t size);
@@ -87,9 +90,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     int fd = (int) (args[1]);
     char *buffer = (void *) (args[2]);
     size_t size = (size_t) (args[3]);
+    // printf("we want to write to %d with size %d\n", fd, size);
     int32_t write_num = sys_write_handler(fd, buffer, size);
     f->eax = write_num;
-    if (write_num == -1) sys_exit_handler(-1);
+    // if (write_num == -1) sys_exit_handler(-1);
 
   }
   else if (args[0] == SYS_CREATE)
@@ -125,7 +129,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     char* name = (char*) (args[1]);
     int fd = sys_open_handler(name);
     f->eax = fd;
-
+    // printf("inside open %d, %s\n", fd, name);
     if (fd == -1)
     {
       sys_exit_handler(-1);
@@ -322,11 +326,68 @@ syscall_handler (struct intr_frame *f UNUSED)
   }
   else if (args[0] == SYS_READDIR)
   {
-
+    // check the validation of the pointer
+    if(!is_args_valid(3, args))
+    {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
+    char* name = (char*) (args[2]);
+    int fd = (int) (args[1]);
+    struct thread *t = thread_current ();
+    uint32_t *pd = t->pagedir;
+    if (is_valid_pointer(pd, name, 0))
+    {
+      // OPEN AND READ THE DIR ENTRY
+      struct list *fd_list = &(t->fd_list);
+      struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
+      bool is_success = false;
+      // printf("here1: %d\n", fd);
+      if (fd_find_pair->is_dir) {
+        // printf("inside readdir\n");
+        is_success = dir_readdir (fd_find_pair->d, name);
+      }
+      f->eax = is_success;
+    }
+    else
+    {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
   }
   else if (args[0] == SYS_ISDIR)
   {
-
+    if(!is_args_valid(2, args))
+    {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
+    int fd = (int) (args[1]);
+    struct thread *t = thread_current ();
+    struct list *fd_list = &(t->fd_list);
+    struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
+    if (fd_find_pair->is_dir) {
+      f->eax = true;
+    } else {
+      f->eax = false;
+    }
+  }
+  else if (args[0] == SYS_INUMBER)
+  {
+    if(!is_args_valid(2, args))
+    {
+      f->eax = -1;
+      sys_exit_handler(-1);
+    }
+    int fd = (int) (args[1]);
+    struct thread *t = thread_current ();
+    struct list *fd_list = &(t->fd_list);
+    struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
+    if (fd_find_pair->is_dir) {
+      f->eax = inode_get_inumber (fd_find_pair->d->inode);
+    } else {
+      f->eax = inode_get_inumber (fd_find_pair->f->inode);
+    }
   }
 }
 
@@ -382,6 +443,9 @@ sys_read_handler (int fd, void* buffer, int32_t size)
     {
       struct list *fd_list = &(t->fd_list);
       struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
+      if (fd_find_pair->is_dir) {
+        return -1;
+      }
       lock_acquire(&file_lock);
       read_num = file_read (fd_find_pair->f, buffer, size);
       lock_release(&file_lock);
@@ -407,6 +471,7 @@ sys_write_handler (int fd, void* buffer, int32_t size)
   struct thread *t = thread_current ();
   uint32_t *pd = t->pagedir;
   int32_t write_num = 0;
+  // printf("inside sys write, %d\n", fd);
   if (!is_valid_pointer (pd, buffer, size))
   {
     write_num = -1;
@@ -420,6 +485,11 @@ sys_write_handler (int fd, void* buffer, int32_t size)
   {
     struct list *fd_list = &(t->fd_list);
     struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
+    // if it's a dir then return -1
+    // printf("find a pair, isdir: %d \n", fd_find_pair->is_dir);
+    if (fd_find_pair->is_dir) {
+      return -1;
+    }
     if (fd_find_pair != NULL)
     {
       lock_acquire(&file_lock);
@@ -440,6 +510,8 @@ sys_write_handler (int fd, void* buffer, int32_t size)
  *  is valid. If so, it open the file, and find a smallest fd number
  *  to return. Meanwhile add the fd struct to the list.
  **/
+ // this need to open either file or dir
+ // when open a thing, first try the name of file, if failed try dir
 static int32_t
 sys_open_handler (char *name)
 {
@@ -449,10 +521,24 @@ sys_open_handler (char *name)
   if (is_valid)
   {
     struct file *file_pointer = filesys_open (name);
-    if (file_pointer == NULL) return -2;
     struct list *fd_list = &(t->fd_list);
-    int res_fd = find_free_fd(fd_list, file_pointer);
-    return(res_fd);
+    // printf("sys open hanler: %s\n", name);
+    if (file_pointer == NULL) {
+      // try open the dir
+      // printf("sys open hanler, open dir: %s\n", name);
+      struct dir *dir_pointer = filesys_open_directory (name);
+      if (dir_pointer == NULL) {
+        return -2;
+      } else {
+        // it's a dir
+        int res_fd = find_free_fd(fd_list, NULL, dir_pointer, true);
+        return(res_fd);
+      }
+    } else {
+      // it's a file
+      int res_fd = find_free_fd(fd_list, file_pointer, NULL, false);
+      return(res_fd);
+    }
   }
   else
   {
@@ -531,13 +617,23 @@ is_valid_pointer (uint32_t *pd, void* buffer, int32_t size)
  *  delete the fd_pair struct from fd_list.
  **/
 static int
-find_free_fd (struct list *fd_list, struct file *file_pointer)
+find_free_fd (struct list *fd_list, struct file *file_pointer,
+  struct dir *dir_pointer, bool is_dir)
 {
   struct list_elem *e, *prev_elem;
   int fd_prev = -1;
 
   struct fd_pair *insert_pair = (struct fd_pair *) malloc(sizeof(struct fd_pair));
-  insert_pair->f = file_pointer;
+  if (is_dir) {
+    insert_pair->d = dir_pointer;
+    insert_pair->is_dir = true;
+    insert_pair->f = NULL;
+  } else {
+    insert_pair->f = file_pointer;
+    insert_pair->is_dir = false;
+    insert_pair->d = NULL;
+  }
+  
 
   for (e = list_begin (fd_list); e != list_end (fd_list);
        e = list_next (e))
