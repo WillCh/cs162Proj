@@ -204,7 +204,9 @@ filesys_open (const char *name)
   } else {
     dir = dir_reopen (dir);
   }
-
+  if (!strcmp ("/", name)) {
+    return NULL;
+  }
   char part[NAME_MAX + 1];
   struct dir_entry entry;
   bool success = true;
@@ -240,7 +242,9 @@ filesys_open_directory (const char *name)
   } else {
     dir = dir_reopen (dir);
   }
-
+  if (!strcmp ("/", name)) {
+    return dir_open_root ();
+  }
   char part[NAME_MAX + 1];
   struct dir_entry entry;
   bool success = true;
