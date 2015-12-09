@@ -26,13 +26,10 @@ static int32_t sys_write_handler (int fd, void* buffer, int32_t size);
 static int32_t sys_read_handler (int fd, void* buffer, int32_t size);
 static int32_t sys_open_handler (char *name);
 
-struct lock file_lock;
-
 void
 syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  lock_init(&file_lock);
 }
 
 static void
@@ -156,9 +153,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
     else
     {
-      lock_acquire(&file_lock);
       f->eax = file_length(fd_find_pair->f);
-      lock_release(&file_lock);
     }
 
   }
@@ -176,9 +171,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
     if (fd_find_pair != NULL)
     {
-      lock_acquire(&file_lock);
       file_seek (fd_find_pair->f, position);
-      lock_release(&file_lock);
     }
 
   }
@@ -195,9 +188,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
     if (fd_find_pair != NULL)
     {
-      lock_acquire(&file_lock);
       size_t res = file_tell (fd_find_pair->f);
-      lock_release(&file_lock);
       f->eax = res;
     }
     else
@@ -447,9 +438,7 @@ sys_read_handler (int fd, void* buffer, int32_t size)
       if (fd_find_pair->is_dir) {
         return -1;
       }
-      lock_acquire(&file_lock);
       read_num = file_read (fd_find_pair->f, buffer, size);
-      lock_release(&file_lock);
     }
   }
   else
@@ -493,9 +482,7 @@ sys_write_handler (int fd, void* buffer, int32_t size)
     }
     if (fd_find_pair != NULL)
     {
-      lock_acquire(&file_lock);
       size_t size_write = file_write (fd_find_pair->f, buffer, size);
-      lock_release(&file_lock);
       write_num = size_write;
     }
     else
