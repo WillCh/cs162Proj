@@ -298,16 +298,18 @@ filesys_remove (const char *name)
 {
   struct dir *dir = filesys_curr_dir();
   // ABSOLUTE PATH
+  // printf("filesys remove %s\n", name);
   if (name[0] == '/') {
     dir = dir_open_root ();
   } else {
     // check valid of current dir
     if (dir->is_remove) {
+      // printf("cur is closed\n");
       return false;
     }
     dir = dir_reopen (dir);
   }
-
+  // printf("here\n");
   char part[NAME_MAX + 1];
   part[0] = 0;
   struct dir_entry entry;
@@ -324,6 +326,7 @@ filesys_remove (const char *name)
   }
 
   if (success) {
+    // printf("here2\n");
     success = dir != NULL && dir_remove (dir, part);
   }
   dir_close (dir);

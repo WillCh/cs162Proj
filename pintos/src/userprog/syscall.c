@@ -237,6 +237,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     uint32_t *pd = t->pagedir;
     if (is_valid_pointer(pd, name, 0))
     {
+      // printf("removing %s\n", name);
       bool is_success = filesys_remove (name);
       f->eax = is_success;
     }

@@ -12,6 +12,7 @@
 #define INODE_MAGIC 0x494e4f44
 
 #define DIR_LEN 123
+#define MAX_LEN ((123 + 2 * BLOCK_SECTOR_SIZE / 4 + BLOCK_SECTOR_SIZE / 4 * BLOCK_SECTOR_SIZE / 4) * BLOCK_SECTOR_SIZE)
 
 static block_sector_t
 byte_to_sector_helper (const struct inode *inode, off_t pos, int len);
@@ -134,7 +135,9 @@ inode_create (block_sector_t sector, off_t length)
   bool success = false;
 
   ASSERT (length >= 0);
-
+  if (length > MAX_LEN) {
+    return success;
+  }
   /* If this assertion fails, the inode structure is not exactly
      one sector in size, and you should fix that. */
   ASSERT (sizeof *disk_inode == BLOCK_SECTOR_SIZE);
@@ -235,27 +238,6 @@ inode_create (block_sector_t sector, off_t length)
       success = true; 
     }
     free (disk_inode);
-      /**
-      if (free_map_allocate (sectors, &disk_inode->start)) 
-        {
-          // revised by haoyu
-          // block_write (fs_device, sector, disk_inode);
-          buffer_write (fs_device, sector, disk_inode);
-          if (sectors > 0) 
-            {
-              static char zeros[BLOCK_SECTOR_SIZE];
-              size_t i;
-              
-              for (i = 0; i < sectors; i++)
-                // revised by haoyu 
-                // block_write (fs_device, disk_inode->start + i, zeros);
-                buffer_write (fs_device, disk_inode->start + i, zeros);
-            }
-          success = true; 
-        } 
-      free (disk_inode);
-    } **/
-  // printf("the inode we create is len: %d\n");
   return success;
 }
 
@@ -507,8 +489,12 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
   if (inode->deny_write_cnt)
     return 0;
-  inode_extend_length (inode, size, offset);
   off_t newLen = size + offset;
+  if (newLen > MAX_LEN) {
+    return 0;
+  }
+  inode_extend_length (inode, size, offset);
+
   off_t inodeLen = inode_length (inode);
   newLen = inodeLen > newLen ? inodeLen : newLen;
   while (size > 0) 

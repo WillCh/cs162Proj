@@ -83,7 +83,7 @@ lookup (const struct dir *dir, const char *name,
   
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-
+  // printf("inside lookup\n");
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) {
     // printf("the file is in use: %d, the name is %s\n",
@@ -243,7 +243,7 @@ dir_remove (struct dir *dir, const char *name)
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-
+  // printf("insie dir_remove: %s, dir: %p\n", name, dir);
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
     goto done;
@@ -253,6 +253,7 @@ dir_remove (struct dir *dir, const char *name)
   if (e.is_dir && (dir_sizeof(&e) != 0)) {
     goto done;
   }
+
   if (e.is_dir) {
     // need to consider whether we are delete the current dir
     struct dir *cur_dir = filesys_curr_dir ();
@@ -267,6 +268,7 @@ dir_remove (struct dir *dir, const char *name)
 
   /* Erase directory entry. */
   e.in_use = false;
+
   if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e) 
     goto done;
 
