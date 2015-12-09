@@ -25,6 +25,7 @@ struct dir
     int cnf;      /* count the number of process open this dir*/
   	struct lock lock_item; /* protect the item_cnf */
     int item_cnf;  /* count number of files in this dir */
+    bool is_remove; 
   };
 
 /* A single directory entry. */

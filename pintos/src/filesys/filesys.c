@@ -52,6 +52,10 @@ filesys_create_dir (const char *name) {
   if (name[0] == '/') {
     dir = dir_open_root ();
   } else {
+    // check current dir is valid
+    if (dir->is_remove) {
+      return false;
+    }
     dir = dir_reopen (dir);
   }
 
@@ -156,6 +160,10 @@ filesys_create (const char *name, off_t initial_size)
   if (name[0] == '/') {
     dir = dir_open_root ();
   } else {
+    // check current dir is valid or not
+    if (dir->is_remove) {
+      return false;
+    }
     dir = dir_reopen (dir);
   }
 
@@ -198,10 +206,16 @@ filesys_open (const char *name)
 {
   struct inode *inode = NULL;
   struct dir *dir = filesys_curr_dir();
+
   // ABSOLUTE PATH
   if (name[0] == '/') {
     dir = dir_open_root ();
   } else {
+    // check the current dir is valid or deleted
+
+    if (dir->is_remove) {
+      return false;
+    }
     dir = dir_reopen (dir);
   }
   if (!strcmp ("/", name)) {
@@ -240,6 +254,10 @@ filesys_open_directory (const char *name)
   if (name[0] == '/') {
     dir = dir_open_root ();
   } else {
+    // check whether the current dir is delete or not
+    if (dir->is_remove) {
+      return false;
+    }
     dir = dir_reopen (dir);
   }
   if (!strcmp ("/", name)) {
@@ -283,6 +301,10 @@ filesys_remove (const char *name)
   if (name[0] == '/') {
     dir = dir_open_root ();
   } else {
+    // check valid of current dir
+    if (dir->is_remove) {
+      return false;
+    }
     dir = dir_reopen (dir);
   }
 

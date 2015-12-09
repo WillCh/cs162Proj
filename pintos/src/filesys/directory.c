@@ -253,6 +253,13 @@ dir_remove (struct dir *dir, const char *name)
   if (e.is_dir && (dir_sizeof(&e) != 0)) {
     goto done;
   }
+  if (e.is_dir) {
+    // need to consider whether we are delete the current dir
+    struct dir *cur_dir = filesys_curr_dir ();
+    if (inode_get_inumber (cur_dir->inode) == e.inode_sector) {
+      cur_dir->is_remove = true;
+    }
+  }
   /* Open inode. */
   inode = inode_open (e.inode_sector);
   if (inode == NULL)
@@ -265,6 +272,8 @@ dir_remove (struct dir *dir, const char *name)
 
   /* Remove inode. */
   inode_remove (inode);
+
+
   success = true;
 
  done:
