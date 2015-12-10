@@ -63,6 +63,7 @@ buffer_update_disk ()
       if (cache_entry->valid && cache_entry->dirty) {
         block_write(cache_entry->block_id, cache_entry->sector_id,
          cache_entry->sector_location);
+        // printf("%s\n", (char *) (cache_entry->sector_location));
         cache_entry->dirty = false;
       }
     }
@@ -194,6 +195,8 @@ buffer_write (struct block *block, block_sector_t sector, const void *buffer)
     if (cache_entry->dirty && cache_entry->valid) {
       block_write(cache_entry->block_id, cache_entry->sector_id,
          cache_entry->sector_location);
+      // print out the error
+      // printf("%s\n", (char *) (cache_entry->sector_location));
     }
 
     // then write the data to this buffer
