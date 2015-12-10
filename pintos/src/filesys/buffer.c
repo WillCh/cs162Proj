@@ -63,8 +63,10 @@ buffer_update_disk ()
       if (cache_entry->valid && cache_entry->dirty) {
         block_write(cache_entry->block_id, cache_entry->sector_id,
          cache_entry->sector_location);
+        cache_entry->dirty = false;
       }
     }
+  lock_release (&list_revise_lock);
 }
 
 /* Reads sector SECTOR from BLOCK into BUFFER, which must
