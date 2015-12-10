@@ -73,7 +73,6 @@ filesys_create_dir (const char *name) {
       break;
     }
   }
-
   if (success) {
     success = (dir != NULL
       && free_map_allocate (1, &inode_sector)
@@ -85,7 +84,7 @@ filesys_create_dir (const char *name) {
 
   // write the ../ dir_entry back to the inode
   // printf("here %d, the entry name is %s, the cur name is %s\n",
-  // success, entry.name, part);
+  //  success, entry.name, part);
   if (success) {
     char name1[3];
     name1[0] = '.'; name1[1] = '.'; name1[2] = 0;
