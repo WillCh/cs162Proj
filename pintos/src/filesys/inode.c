@@ -332,7 +332,8 @@ inode_close (struct inode *inode)
 
           // remove every data
           struct inode_disk *disk_inode = &inode->data;
-          int index = disk_inode->length / BLOCK_SECTOR_SIZE;
+          // int index = disk_inode->length / BLOCK_SECTOR_SIZE;
+          int index = inode_length(disk_inode) / BLOCK_SECTOR_SIZE;
           int i = 0;
           block_sector_t *tmpsect_1st = NULL;
           block_sector_t *tmpsect_2nd = NULL;
@@ -418,6 +419,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   uint8_t *buffer = buffer_;
   off_t bytes_read = 0;
   uint8_t *bounce = NULL;
+  off_t inode_len = inode_length (inode);
 
   while (size > 0) 
     {
@@ -427,7 +429,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      off_t inode_left = inode_length (inode) - offset;
+      off_t inode_left = inode_len - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
 
@@ -469,7 +471,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       bytes_read += chunk_size;
     }
   free (bounce);
-  // printf("inside inode read, the size we read is %d\n", bytes_read);
   return bytes_read;
 }
 
@@ -565,8 +566,8 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   struct inode_disk *disk_inode = &inode->data;
   lock_acquire (&inode->length_lock);
   disk_inode->length = newLen;
-  lock_release (&inode->length_lock);
   buffer_write (fs_device, inode->sector, disk_inode);
+  lock_release (&inode->length_lock);
   free (bounce);
   return bytes_written;
 }
