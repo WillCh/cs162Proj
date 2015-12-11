@@ -15,6 +15,9 @@ struct lock list_revise_lock;
 /* pointer to the sector memory */
 struct sector *sector_entry;
 
+static int num_access;
+static int num_hits;
+
 /* init the buffer system */
 bool
 buffer_init(void)
@@ -45,6 +48,8 @@ buffer_init(void)
   }
   lock_init (&list_revise_lock);
   // printf("finish the init of buffer\n");
+  num_access = 0;
+  num_hits = 0;
   return true;
 }
 
@@ -85,6 +90,7 @@ buffer_read (struct block *block, block_sector_t sector, void *buffer)
   // structure.... so here I only allow one thread to use this list
   // per time
   lock_acquire (&list_revise_lock);
+  num_access += 1;
   bool finished = false;
   for (e = list_begin (&open_sectors); e != list_end (&open_sectors);
        e = list_next (e))
@@ -105,6 +111,7 @@ buffer_read (struct block *block, block_sector_t sector, void *buffer)
           list_remove (e);
           list_push_front (&open_sectors, e);
           finished = true;
+          num_hits += 1;
           break;
         }
       } else {
@@ -156,6 +163,7 @@ buffer_write (struct block *block, block_sector_t sector, const void *buffer)
   // per time
   // printf("inside buffer_write\n");
   lock_acquire (&list_revise_lock);
+  num_access += 1;
   bool finished = false;
   for (e = list_begin (&open_sectors); e != list_end (&open_sectors);
        e = list_next (e))
@@ -174,6 +182,7 @@ buffer_write (struct block *block, block_sector_t sector, const void *buffer)
           finished = true;
           cache_entry->valid = true;
           cache_entry->dirty = true;
+          num_hits += 1;
           break;
         }
       } else {
@@ -181,6 +190,7 @@ buffer_write (struct block *block, block_sector_t sector, const void *buffer)
         break;
       }
     }
+
   if (!finished) {
     // printf("write to the disk\n");
     // need to read from the real device and insert to the responding block
@@ -209,5 +219,29 @@ buffer_write (struct block *block, block_sector_t sector, const void *buffer)
     // put the elem to the front of the list
     list_push_front (&open_sectors, e);
   }
+  lock_release (&list_revise_lock);
+}
+
+void buffer_performance(int *access, int *hit){
+  *access = num_access;
+  *hit = num_hits;
+  num_access = 0;
+  num_hits = 0;
+}
+
+void buffer_clean(void)
+{
+  struct list_elem *e;
+  buffer_update_disk();
+  lock_acquire (&list_revise_lock);
+  for (e = list_begin (&open_sectors); e != list_end (&open_sectors);
+       e = list_next (e))
+    {
+      struct sector_cache *cache_entry = list_entry 
+          (e, struct sector_cache, cache_elem);
+      cache_entry->valid = false;
+    }
+  num_access = 0;
+  num_hits = 0;
   lock_release (&list_revise_lock);
 }

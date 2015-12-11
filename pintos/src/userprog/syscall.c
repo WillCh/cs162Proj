@@ -10,10 +10,12 @@
 #include "filesys/file.h"
 #include "devices/input.h"
 #include "kernel/stdio.h"
+#include "filesys/buffer.h"
 
 #include "filesys/directory.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <threads/fixed-point.h>
 
 static void syscall_handler (struct intr_frame *);
 
@@ -380,6 +382,17 @@ syscall_handler (struct intr_frame *f UNUSED)
     } else {
       f->eax = inode_get_inumber (fd_find_pair->f->inode);
     }
+  }
+  else if (args[0] == SYS_BUFFER_CLEAN)
+  {
+      buffer_clean();
+  }
+  else if (args[0] == SYS_BUFFER_HIT_RATE)
+  {
+      int access;
+      int hit;
+      buffer_performance(&access, &hit);
+      f->eax = fix_round(fix_mul(fix_div(fix_int(hit), fix_int(access)), fix_int(10000)));
   }
 }
 
