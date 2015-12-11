@@ -1,0 +1,9 @@
+Test Case 1: Buffer Hit Rate
+Description: This test tastes whether buffer cache exploits temporal locality by caching recently used data fetched from disk, and thus hit rate improves with subsequent reads of the same data.
+Overview: Buffer cache should theoretically exploits temporal locality by storing recently used data fetched from disk in memory, so subsequent reads of the same data should produce hits in the cache to eliminate the need to fetch from disk again. Therefore, with a cold cache, reading a large file should produce nearly 0 hit rate. Upon closing and reading the same file, the reads should produce cache hits and therefore improves the hit rate. We then compare the hit rate with the cold cache and
+with the warm cache to see whether buffer cache indeeds improves it. The new syscalls are buffer_clean() and buffer_hit_rate(int *access, int *hit). buffer_clean invalidates all cache entries in the buffer cache to produce a cold cache. buffer_hit_rate stores the number of accesses and hits of the buffer cache in the argument pointers, and reset them to 0.
+Output: The output is "Hit rate improves" if hit rate improves in the second read of the same file, and "Hit rate worsens" otherwise.
+(buf-hit-rate) begin
+(buf-hit-rate) Hit rate improves
+(buf-hit-rate) end
+Potential Bugs: 
