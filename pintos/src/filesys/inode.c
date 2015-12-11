@@ -332,8 +332,8 @@ inode_close (struct inode *inode)
 
           // remove every data
           struct inode_disk *disk_inode = &inode->data;
-          // int index = disk_inode->length / BLOCK_SECTOR_SIZE;
-          int index = inode_length(disk_inode) / BLOCK_SECTOR_SIZE;
+          int index = disk_inode->length / BLOCK_SECTOR_SIZE;
+          // int index = inode_length(disk_inode) / BLOCK_SECTOR_SIZE;
           int i = 0;
           block_sector_t *tmpsect_1st = NULL;
           block_sector_t *tmpsect_2nd = NULL;
