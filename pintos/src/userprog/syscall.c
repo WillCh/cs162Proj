@@ -396,11 +396,11 @@ syscall_handler (struct intr_frame *f UNUSED)
   }
   else if (args[0] == SYS_BUFFER_READ_NUM)
   {
-      f->eax = fs_device->read_cnt;
+      f->eax = get_fs_device_read_cnt(fs_device);
   }
   else if (args[0] == SYS_BUFFER_WRITE_NUM)
   {
-      f->eax = fs_device->write_cnt;
+      f->eax = get_fs_device_write_cnt(fs_device);
   }
 }
 

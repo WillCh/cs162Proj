@@ -18,26 +18,31 @@ test_main (void)
   int i;
   for (i = 0; i < 16; ++i)
     write(fd, buffer, 512);
-  int num_read_before = buffer_read_num(); //should be zero
-  int num_write_before = buffer_write_num(); //should be zero
-  printf("number of reads before: %d\n", num_read_before);
-  printf("number of wirtes before: %d\n", num_write_before);
+  int num_read_before = buffer_read_num();
+  int num_write_before = buffer_write_num();
 
   seek(fd, 0);
   for (i = 0; i < 16; ++i)
     write(fd, buffer, 512);
-  int num_read_middle = buffer_read_num(); //should be zero
-  int num_write_middle = buffer_write_num(); //should be zero
-  printf("number of reads middle: %d\n", num_read_middle);
-  printf("number of wirtes middle: %d\n", num_write_middle);
+  int num_read_middle = buffer_read_num();
+  int num_write_middle = buffer_write_num();
 
   seek(fd, 0);
   for (i = 0; i < 16; ++i)
     write(fd, buffer, 512);
-  int num_read_end = buffer_read_num(); //should be zero
-  int num_write_end = buffer_write_num(); //should be 16
-  printf("number of reads end: %d\n", num_read_end);
-  printf("number of wirtes end: %d\n", num_write_end);
+  buffer_clean();
+  int num_read_end = buffer_read_num();
+  int num_write_end = buffer_write_num();
+
+  int read_diff_middle_before = num_read_middle - num_read_before;
+  int write_diff_middle_before = num_write_middle - num_write_before;
+  int read_diff_end_middle = num_read_end - num_read_middle;
+  int write_diff_end_middle = num_write_end - num_write_middle;
+  
+  msg("read_diff_middle_before: %d", read_diff_middle_before);
+  msg("write_diff_middle_before: %d", write_diff_middle_before);
+  msg("read_diff_end_middle: %d", read_diff_end_middle);
+  msg("write_diff_end_middle: %d", write_diff_end_middle);
 
   close(fd);
 }

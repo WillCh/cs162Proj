@@ -223,3 +223,14 @@ list_elem_to_block (struct list_elem *list_elem)
           : NULL);
 }
 
+unsigned long long
+get_fs_device_read_cnt (struct block *block_device)
+{
+  return block_device->read_cnt;
+}
+
+unsigned long long
+get_fs_device_write_cnt (struct block *block_device)
+{
+  return block_device->write_cnt;
+}

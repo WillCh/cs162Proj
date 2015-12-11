@@ -47,6 +47,7 @@ bool isdir (int fd);
 int inumber (int fd);
 int buffer_read_num (void);
 int buffer_write_num(void);
-
+void buffer_clean();
+int buffer_hit_rate();
 
 #endif /* lib/user/syscall.h */
