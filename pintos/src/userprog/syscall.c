@@ -394,6 +394,14 @@ syscall_handler (struct intr_frame *f UNUSED)
       buffer_performance(&access, &hit);
       f->eax = fix_round(fix_mul(fix_div(fix_int(hit), fix_int(access)), fix_int(10000)));
   }
+  else if (args[0] == SYS_BUFFER_READ_NUM)
+  {
+      f->eax = fs_device->read_cnt;
+  }
+  else if (args[0] == SYS_BUFFER_WRITE_NUM)
+  {
+      f->eax = fs_device->write_cnt;
+  }
 }
 
 /**
