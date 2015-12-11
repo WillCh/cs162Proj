@@ -192,10 +192,10 @@ inumber (int fd)
 void
 buffer_clean(void) 
 {
-  return syscall0 (SYS_BUFFER_CLEAN);
+  syscall0 (SYS_BUFFER_CLEAN);
 }
 
-void
+int
 buffer_hit_rate(void) 
 {
   return syscall0 (SYS_BUFFER_HIT_RATE);
