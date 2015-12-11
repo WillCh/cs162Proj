@@ -188,3 +188,15 @@ inumber (int fd)
 {
   return syscall1 (SYS_INUMBER, fd);
 }
+
+void
+buffer_clean(void) 
+{
+  return syscall0 (SYS_BUFFER_CLEAN);
+}
+
+void
+buffer_hit_rate(void) 
+{
+  return syscall0 (SYS_BUFFER_HIT_RATE);
+}

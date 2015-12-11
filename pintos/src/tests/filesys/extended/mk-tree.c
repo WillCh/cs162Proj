@@ -12,6 +12,7 @@ void
 make_tree (int at, int bt, int ct, int dt) 
 {
   char try[128];
+  /*
   int a, b, c, d;
   int fd;
 
@@ -38,6 +39,12 @@ make_tree (int at, int bt, int ct, int dt)
   CHECK ((fd = open (try)) > 1, "open \"%s\"", try);
   msg ("close \"%s\"", try);
   close (fd);
+  */
+  int a;
+  for (a = 0; a < 200; a++) 
+    {
+        do_touch ("%d", a);
+    }
 }
 
 static void
