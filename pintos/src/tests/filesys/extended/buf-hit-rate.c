@@ -9,8 +9,6 @@
 void
 test_main (void) 
 {
-  char file[128];
-
   create ("a", 10000);
   buffer_clean();
   int fd = open("a");
