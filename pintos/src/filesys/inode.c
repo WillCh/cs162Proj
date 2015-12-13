@@ -6,7 +6,6 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
-// include my buffer h file HYC
 #include "filesys/buffer.h"
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -20,14 +19,11 @@ byte_to_sector_helper (const struct inode *inode, off_t pos, int len);
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
   {
-    // block_sector_t start;               /* First data sector. uint32_t, id of the sector number */
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
     block_sector_t dir[DIR_LEN];
     block_sector_t single_indir[2];
     block_sector_t double_indir;
-    // uint32_t unused[125];               /* Not used. */
-  
   };
 
 /* Returns the number of sectors to allocate for an inode SIZE
@@ -55,7 +51,6 @@ struct inode
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
    POS. */
-// return the sector number of the pos
 static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) 
 {
@@ -67,8 +62,6 @@ static block_sector_t
 byte_to_sector_helper (const struct inode *inode, off_t pos, int len) 
 {
   ASSERT (inode != NULL);
-  // printf("inside bytosector, sector is %d ,pos is %d, len is %d\n",
-  // inode->sector, pos, inode->data.length);
   if (pos < len) {
     int index = pos / BLOCK_SECTOR_SIZE;
     if (index < DIR_LEN) {
@@ -77,7 +70,7 @@ byte_to_sector_helper (const struct inode *inode, off_t pos, int len)
       // 1 level indir case
       // read from the device
       block_sector_t *tmp_buf = calloc(1, BLOCK_SECTOR_SIZE);
-      buffer_read (fs_device, inode->data.single_indir[0], tmp_buf);
+      buffer_read (fs_device, inode->data.single_indir[0], tmp_buf, 0, BLOCK_SECTOR_SIZE);
       block_sector_t res = tmp_buf[index - DIR_LEN];
       free(tmp_buf);
       return res;
@@ -85,26 +78,21 @@ byte_to_sector_helper (const struct inode *inode, off_t pos, int len)
     } else if (index < DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4) {
       // 2nd 1 level indir case
       block_sector_t *tmp_buf = calloc(1, BLOCK_SECTOR_SIZE);
-      buffer_read (fs_device, inode->data.single_indir[1], tmp_buf);
+      buffer_read (fs_device, inode->data.single_indir[1], tmp_buf, 0, BLOCK_SECTOR_SIZE);
       block_sector_t res = tmp_buf[index - DIR_LEN - BLOCK_SECTOR_SIZE / 4];
       free(tmp_buf);
-      // printf("the index is %d inside the inode 2nd single\n", index);
       return res;
 
     } else { 
       // read the double indirector pointer
       block_sector_t *tmp_buf = calloc(1, BLOCK_SECTOR_SIZE);
-      buffer_read (fs_device, inode->data.double_indir, tmp_buf);
+      buffer_read (fs_device, inode->data.double_indir, tmp_buf, 0, BLOCK_SECTOR_SIZE);
       index = index - (DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4);
       int tmp_index = index / (BLOCK_SECTOR_SIZE / 4);
       int tmp_index2 = index % (BLOCK_SECTOR_SIZE / 4);
-      // printf("inside the inode double help: tmp_index: %d, tmp_index2: %d\n", tmp_index, tmp_index2);
-      // read the 2nd level
       block_sector_t id_2level = tmp_buf[tmp_index];
-      // printf("inode helper 2level secotr is %d\n", tmp_buf[tmp_index]);
-      buffer_read (fs_device, id_2level, tmp_buf);
+      buffer_read (fs_device, id_2level, tmp_buf, 0, BLOCK_SECTOR_SIZE);
       block_sector_t res = tmp_buf[tmp_index2];
-      // printf("inode helper data level secotr is %d\n", tmp_buf[tmp_index2]);
       free(tmp_buf);
       return res;
     }
@@ -132,8 +120,6 @@ inode_init (void)
 bool
 inode_create (block_sector_t sector, off_t length)
 {
-  // printf("inside inode create, the len is %d the sector is %d\n",
-  // length, sector);
   struct inode_disk *disk_inode = NULL;
   bool success = false;
 
@@ -158,8 +144,6 @@ inode_create (block_sector_t sector, off_t length)
       block_sector_t *tmpsect_1st = NULL;
       block_sector_t *tmpsect_2nd = NULL;
       block_sector_t *tmpsect_2level_1 = NULL;
-      // printf("inside inode create the index is %d\n", index);
-      // alloc the space for the internel pages
       if (index >= DIR_LEN) {
         // printf("inside the inode create has indir pnt\n");
         // 1st indir
@@ -180,23 +164,23 @@ inode_create (block_sector_t sector, off_t length)
         for (i = 0; i <= tmp_index2; i++) {
           success = free_map_allocate (1, &(tmpsect_2level_1[i]));
         }
-        buffer_write (fs_device, disk_inode->double_indir, tmpsect_2level_1);
+        buffer_write (fs_device, disk_inode->double_indir, tmpsect_2level_1, 0, BLOCK_SECTOR_SIZE);
       }
       // alloc the data sector
       block_sector_t *cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
       for (i = 0; i <= index; i++) {
         if (i < DIR_LEN) {
           success = free_map_allocate (1, &(disk_inode->dir[i]));
-          buffer_write (fs_device, disk_inode->dir[i], zeros);
+          buffer_write (fs_device, disk_inode->dir[i], zeros, 0, BLOCK_SECTOR_SIZE);
         } else if (i < DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
           // 1st 1-level
           int index_1st_level = i - DIR_LEN;
           success = free_map_allocate (1, &(tmpsect_1st[index_1st_level]));
-          buffer_write (fs_device, tmpsect_1st[index_1st_level] ,zeros);
+          buffer_write (fs_device, tmpsect_1st[index_1st_level] ,zeros, 0, BLOCK_SECTOR_SIZE);
         } else if (i < DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4) {
           int index_1st_level = i - DIR_LEN - BLOCK_SECTOR_SIZE / 4;
           success = free_map_allocate (1, &(tmpsect_2nd[index_1st_level]));
-          buffer_write (fs_device, tmpsect_2nd[index_1st_level] ,zeros);
+          buffer_write (fs_device, tmpsect_2nd[index_1st_level] ,zeros, 0, BLOCK_SECTOR_SIZE);
         } else {
           // double director case
           int index_1st_level = i - DIR_LEN - 2 * BLOCK_SECTOR_SIZE / 4;
@@ -206,31 +190,26 @@ inode_create (block_sector_t sector, off_t length)
           if (tmp_index2 == 0) {
             // beginng of the 2-level page
             memset (cur_sector, 0, BLOCK_SECTOR_SIZE);
-            // cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
           }
           
           success = free_map_allocate (1, &(cur_sector[tmp_index2]));
-          buffer_write (fs_device, cur_sector[tmp_index2], zeros);
+          buffer_write (fs_device, cur_sector[tmp_index2], zeros, 0, BLOCK_SECTOR_SIZE);
           if (tmp_index2 == BLOCK_SECTOR_SIZE / 4 - 1) {
             // last entry of the 2-level page
-            buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
+            buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector, 0, BLOCK_SECTOR_SIZE);
           } else if (i == index) {
             // last entry
-            buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
+            buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector, 0, BLOCK_SECTOR_SIZE);
             // NOTICE, the last page may contain useless 0s
           }
         } 
       }
       // write back the page content to the disk
       if (tmpsect_1st != NULL) {
-        buffer_write (fs_device, disk_inode->single_indir[0], tmpsect_1st);
+        buffer_write (fs_device, disk_inode->single_indir[0], tmpsect_1st, 0, BLOCK_SECTOR_SIZE);
       }
-      // printf("the inode pnter is: \n");
-      // for (i = 0; i < DIR_LEN; i++) {
-      //  printf("%d\n", disk_inode->dir[i]);
-      // }
       if (tmpsect_2nd != NULL) {
-        buffer_write (fs_device, disk_inode->single_indir[1], tmpsect_2nd);
+        buffer_write (fs_device, disk_inode->single_indir[1], tmpsect_2nd, 0, BLOCK_SECTOR_SIZE);
       }
       free (tmpsect_1st);
       free (tmpsect_2nd);
@@ -238,7 +217,7 @@ inode_create (block_sector_t sector, off_t length)
       free (cur_sector);
       free (zeros);
       // write back the inode
-      buffer_write (fs_device, sector, disk_inode);
+      buffer_write (fs_device, sector, disk_inode, 0, BLOCK_SECTOR_SIZE);
       success = true; 
     }
     free (disk_inode);
@@ -269,7 +248,6 @@ inode_open (block_sector_t sector)
   /* Allocate memory. */
   inode = malloc (sizeof *inode);
   if (inode == NULL) {
-    // printf(" bugs in the inode open 1\n");
     return NULL;
   }
     
@@ -280,17 +258,10 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
-  // add by haoyu
   // init the lock
   lock_init (&inode->extend_lock);
   lock_init (&inode->length_lock);
-  // Haoyu Change to the buffer's api
-  // block_read (fs_device, inode->sector, &inode->data);  // read disk inode from sector
-  // printf("before buffer read in inode open\n");
-  buffer_read (fs_device, inode->sector, &inode->data);
-  // if (inode == NULL) {
-  //  printf(" bugs in the inode open\n");
-  // }
+  buffer_read (fs_device, inode->sector, &inode->data, 0, BLOCK_SECTOR_SIZE);
   return inode;
 }
 
@@ -336,7 +307,6 @@ inode_close (struct inode *inode)
           // remove every data
           struct inode_disk *disk_inode = &inode->data;
           int index = disk_inode->length / BLOCK_SECTOR_SIZE;
-          // int index = inode_length(disk_inode) / BLOCK_SECTOR_SIZE;
           int i = 0;
           block_sector_t *tmpsect_1st = NULL;
           block_sector_t *tmpsect_2nd = NULL;
@@ -346,18 +316,18 @@ inode_close (struct inode *inode)
           if (index >= DIR_LEN) {
             // 1st indir
             tmpsect_1st = calloc(1, BLOCK_SECTOR_SIZE);
-            buffer_read (fs_device, disk_inode->single_indir[0], tmpsect_1st);
+            buffer_read (fs_device, disk_inode->single_indir[0], tmpsect_1st, 0, BLOCK_SECTOR_SIZE);
             free_map_release (disk_inode->single_indir[0], 1);
           } 
           if (index >= DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
             // 2nd indir
             tmpsect_2nd = calloc(1, BLOCK_SECTOR_SIZE);
-            buffer_read (fs_device, disk_inode->single_indir[1], tmpsect_2nd);
+            buffer_read (fs_device, disk_inode->single_indir[1], tmpsect_2nd, 0, BLOCK_SECTOR_SIZE);
             free_map_release (disk_inode->single_indir[1], 1);
           }
           if (index >= DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4) {
             tmpsect_2level_1 = calloc(1, BLOCK_SECTOR_SIZE);
-            buffer_read (fs_device, disk_inode->double_indir, tmpsect_2level_1);
+            buffer_read (fs_device, disk_inode->double_indir, tmpsect_2level_1, 0, BLOCK_SECTOR_SIZE);
             free_map_release (disk_inode->double_indir, 1);
           }
 
@@ -379,8 +349,7 @@ inode_close (struct inode *inode)
               int tmp_index = index_1st_level / (BLOCK_SECTOR_SIZE / 4);
               int tmp_index2 = index_1st_level % (BLOCK_SECTOR_SIZE / 4);
               if (tmp_index2 == 0) {
-                // cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
-                buffer_read (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
+                buffer_read (fs_device, tmpsect_2level_1[tmp_index], cur_sector, 0, BLOCK_SECTOR_SIZE);
               }
               free_map_release (cur_sector[tmp_index2], 1);
               if (tmp_index2 == BLOCK_SECTOR_SIZE / 4 - 1) {
@@ -396,8 +365,6 @@ inode_close (struct inode *inode)
           free (tmpsect_2nd);
           free (tmpsect_2level_1);
           free (cur_sector);
-          // free_map_release (inode->data.start,
-          //                   bytes_to_sectors (inode->data.length)); 
         }
 
       free (inode); 
@@ -440,34 +407,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0)
         break;
-
-      if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
-        {
-          /* Read full sector directly into caller's buffer. */
-          // changed by Haoyu
-          // block_read (fs_device, sector_idx, buffer + bytes_read);
-          buffer_read (fs_device, sector_idx, buffer + bytes_read);
-        }
-      else 
-        {
-          // this means that the data we read not from the 
-          // beginning of the sector. we need to copy the
-          // data into a buffer: bounce, then copy the data from bounce
-          // to our real data
-          /* Read sector into bounce buffer, then partially copy
-             into caller's buffer. */
-          if (bounce == NULL) 
-            {
-              bounce = malloc (BLOCK_SECTOR_SIZE);
-              if (bounce == NULL)
-                break;
-            }
-            // changed by Haoyu
-          // block_read (fs_device, sector_idx, bounce);
-          buffer_read (fs_device, sector_idx, bounce);
-          memcpy (buffer + bytes_read, bounce + sector_ofs, chunk_size);
-        }
-      
+      buffer_read (fs_device, sector_idx, buffer + bytes_read, sector_ofs, chunk_size);
       /* Advance. */
       size -= chunk_size;
       offset += chunk_size;
@@ -486,10 +426,6 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset) 
 {
-  // printf("inside inode write, sector: %d, size: %d, offset: %d\n",
-  // inode->sector, size, offset);
-  // printf("beg of inode write\n");
-  // printf("size input: %d\n", size);
   off_t original_size = size;
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
@@ -507,15 +443,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   newLen = inodeLen > newLen ? inodeLen : newLen;
   while (size > 0) 
     {
-      // printf("inside the write while\n");
       /* Sector to write, starting byte offset within sector. */
-      // printf(" the data len is %d\n", inode->data.length);
-      // block_sector_t sector_idx = byte_to_sector (inode, offset);
       block_sector_t sector_idx = byte_to_sector_helper (inode, offset, newLen);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
-      // printf("inside inode_write_at, sector idx is : %d\n", sector_idx);
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-      // off_t inode_left = inode_length (inode) - offset;
       off_t inode_left = newLen - offset;
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs;
       int min_left = inode_left < sector_left ? inode_left : sector_left;
@@ -523,44 +454,10 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       /* Number of bytes to actually write into this sector. */
       int chunk_size = size < min_left ? size : min_left;
       if (chunk_size <= 0) {
-        // printf("negative chunk size\n");
         break;
       }
-
-      if (sector_ofs == 0 && chunk_size == BLOCK_SECTOR_SIZE)
-        {
-          /* Write full sector directly to disk. */
-          // revised by haoyu
-          // block_write (fs_device, sector_idx, buffer + bytes_written);
-          buffer_write (fs_device, sector_idx, buffer + bytes_written);
-        }
-      else 
-        {
-          /* We need a bounce buffer. */
-          if (bounce == NULL) 
-            {
-              bounce = malloc (BLOCK_SECTOR_SIZE);
-              if (bounce == NULL) {
-                // printf("malloc failed\n");
-                break;                
-              }
-            }
-
-          /* If the sector contains data before or after the chunk
-             we're writing, then we need to read in the sector
-             first.  Otherwise we start with a sector of all zeros. */
-          if (sector_ofs > 0 || chunk_size < sector_left) 
-            // change by haoyu
-            // block_read (fs_device, sector_idx, bounce);
-            buffer_read (fs_device, sector_idx, bounce);
-          else
-            memset (bounce, 0, BLOCK_SECTOR_SIZE);
-          memcpy (bounce + sector_ofs, buffer + bytes_written, chunk_size);
-          // revised by haoyu
-          // block_write (fs_device, sector_idx, bounce);
-          buffer_write (fs_device, sector_idx, bounce);
-        }
-
+      buffer_write (fs_device, sector_idx, buffer + bytes_written, sector_ofs, chunk_size);
+ 
       /* Advance. */
       size -= chunk_size;
       offset += chunk_size;
@@ -570,13 +467,13 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   struct inode_disk *disk_inode = &inode->data;
   lock_acquire (&inode->length_lock);
   disk_inode->length = newLen;
-  buffer_write (fs_device, inode->sector, disk_inode);
+  buffer_write (fs_device, inode->sector, disk_inode, 0, BLOCK_SECTOR_SIZE);
   lock_release (&inode->length_lock);
   free (bounce);
   return bytes_written;
 }
 
-/* function to extend the inode */
+/* Function to extend the inode */
 void
 inode_extend_length (struct inode *inode, off_t size,
                 off_t offset)
@@ -585,7 +482,6 @@ inode_extend_length (struct inode *inode, off_t size,
   lock_acquire (&inode->extend_lock);
   int newLen = offset + size;
   int oldLen = inode_length(inode);
-  // printf("inside the inode extend, old len: %d, new %d\n", oldLen, newLen);
   if (oldLen < newLen) {
     struct inode_disk *disk_inode = &inode->data;
     int newindex = newLen / BLOCK_SECTOR_SIZE;
@@ -596,10 +492,7 @@ inode_extend_length (struct inode *inode, off_t size,
     block_sector_t *tmpsect_2nd = calloc(1, BLOCK_SECTOR_SIZE);
     block_sector_t *tmpsect_2level_1 = calloc(1, BLOCK_SECTOR_SIZE);
     int i = 0;
-    // printf("inside inode create the index is %d\n", index);
-    // alloc the space for the internel pages
     if (newindex >= DIR_LEN && oldindex < DIR_LEN) {
-      // printf("inside the inode create has indir pnt\n");
       // 1st indir
       free_map_allocate (1, &(disk_inode->single_indir[0]));
     } 
@@ -614,7 +507,7 @@ inode_extend_length (struct inode *inode, off_t size,
         free_map_allocate (1, &(disk_inode->double_indir));
       }
 
-      buffer_read (fs_device, disk_inode->double_indir, tmpsect_2level_1);
+      buffer_read (fs_device, disk_inode->double_indir, tmpsect_2level_1, 0, BLOCK_SECTOR_SIZE);
       // tmpsect_2level_1 = calloc(1, BLOCK_SECTOR_SIZE);
       int newtmp_index = newindex - (DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4);
       int newtmp_index2 = newtmp_index / (BLOCK_SECTOR_SIZE / 4);
@@ -624,103 +517,67 @@ inode_extend_length (struct inode *inode, off_t size,
       if (oldtmp_index < 0) {
         oldtmp_index2 = -1;
       }
-      // oldtmp_index2 = oldtmp_index2 > 0 ? oldtmp_index2 : 0;
-      // printf("inside the inode extend: oldtmp_index %d, oldtmp_index2: %d newtmp_index2 %d, newtmp_index %d\n",
-      //  oldtmp_index, oldtmp_index2, newtmp_index2, newtmp_index);
       for (i = oldtmp_index2 + 1; i <= newtmp_index2; i++) {
         free_map_allocate (1, &(tmpsect_2level_1[i]));
-        // printf("the tmpsect_2level_1[%d] is %d\n", i, tmpsect_2level_1[i]);
       }
 
-      buffer_write (fs_device, disk_inode->double_indir, tmpsect_2level_1);
+      buffer_write (fs_device, disk_inode->double_indir, tmpsect_2level_1, 0, BLOCK_SECTOR_SIZE);
     }
 
     // read the internal pages
     if (newindex >= DIR_LEN) {
-      buffer_read (fs_device, disk_inode->single_indir[0], tmpsect_1st);
+      buffer_read (fs_device, disk_inode->single_indir[0], tmpsect_1st, 0, BLOCK_SECTOR_SIZE);
     }
     if (newindex >= DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
-      buffer_read (fs_device, disk_inode->single_indir[1], tmpsect_2nd);
+      buffer_read (fs_device, disk_inode->single_indir[1], tmpsect_2nd, 0, BLOCK_SECTOR_SIZE);
     }
 
     // alloc the data sector
     block_sector_t *cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
-    // printf("oldindex is %d, newindex %d\n", oldindex, newindex);
     for (i = oldindex + 1; i <= newindex; i++) {
       if (i < DIR_LEN) {
         free_map_allocate (1, &(disk_inode->dir[i]));
-        buffer_write (fs_device, disk_inode->dir[i], zeros);
+        buffer_write (fs_device, disk_inode->dir[i], zeros, 0, BLOCK_SECTOR_SIZE);
       } else if (i < DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
         // 1st 1-level
         int index_1st_level = i - DIR_LEN;
         free_map_allocate (1, &(tmpsect_1st[index_1st_level]));
-        buffer_write (fs_device, tmpsect_1st[index_1st_level] ,zeros);
+        buffer_write (fs_device, tmpsect_1st[index_1st_level] ,zeros, 0, BLOCK_SECTOR_SIZE);
       } else if (i < DIR_LEN + 2 * BLOCK_SECTOR_SIZE / 4) {
         int index_1st_level = i - DIR_LEN - BLOCK_SECTOR_SIZE / 4;
         free_map_allocate (1, &(tmpsect_2nd[index_1st_level]));
-        buffer_write (fs_device, tmpsect_2nd[index_1st_level] ,zeros);
+        buffer_write (fs_device, tmpsect_2nd[index_1st_level] ,zeros, 0, BLOCK_SECTOR_SIZE);
       } else {
         // double director case
         int index_1st_level = i - DIR_LEN - 2 * BLOCK_SECTOR_SIZE / 4;
         int tmp_index = index_1st_level / (BLOCK_SECTOR_SIZE / 4);
         int tmp_index2 = index_1st_level % (BLOCK_SECTOR_SIZE / 4);
-        // printf("second part, tmp_index %d, tmp_index2 %d\n", tmp_index, tmp_index2);
         if (tmp_index2 == 0) {
           // beginng of the 2-level page
           memset (cur_sector, 0, BLOCK_SECTOR_SIZE);
           // cur_sector = calloc(1, BLOCK_SECTOR_SIZE);
         } else {
-          buffer_read (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
+          buffer_read (fs_device, tmpsect_2level_1[tmp_index], cur_sector, 0, BLOCK_SECTOR_SIZE);
         }
         
         free_map_allocate (1, &(cur_sector[tmp_index2]));
-        buffer_write (fs_device, cur_sector[tmp_index2], zeros);
-        // printf("generate 2level data page, cur_sector[%d]: %d\n", tmp_index2, cur_sector[tmp_index2]);
-        buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
-        /**
-        if (tmp_index2 == BLOCK_SECTOR_SIZE / 4 - 1) {
-          // last entry of the 2-level page
-          int j = 0;
-          for (j; j < tmp_index2 + 1; j++) {
-            printf("the content is %d\n", cur_sector[j]);
-          }
-          printf("write back to %d\n", tmpsect_2level_1[tmp_index]);
-          buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
-        } else if (i == newindex) {
-          // last entry
-          int j = 0;
-          for (j; j < tmp_index2 + 1; j++) {
-            printf("the content is %d\n", cur_sector[j]);
-          }
-          printf("write back to %d\n", tmpsect_2level_1[tmp_index]);
-          buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector);
-          // NOTICE, the last page may contain useless 0s
-        }
-        **/
+        buffer_write (fs_device, cur_sector[tmp_index2], zeros, 0, BLOCK_SECTOR_SIZE);
+        buffer_write (fs_device, tmpsect_2level_1[tmp_index], cur_sector, 0, BLOCK_SECTOR_SIZE);
       } 
     }
     // write back the page content to the disk
     if (newindex >= DIR_LEN) {
-      buffer_write (fs_device, disk_inode->single_indir[0], tmpsect_1st);
+      buffer_write (fs_device, disk_inode->single_indir[0], tmpsect_1st, 0, BLOCK_SECTOR_SIZE);
     }
-    // printf("the inode pnter is: \n");
-    // for (i = 0; i < DIR_LEN; i++) {
-    //  printf("%d\n", disk_inode->dir[i]);
-    // }
     if (newindex >= DIR_LEN + BLOCK_SECTOR_SIZE / 4) {
-      buffer_write (fs_device, disk_inode->single_indir[1], tmpsect_2nd);
+      buffer_write (fs_device, disk_inode->single_indir[1], tmpsect_2nd, 0, BLOCK_SECTOR_SIZE);
     }
     free (tmpsect_1st);
     free (tmpsect_2nd);
     free (tmpsect_2level_1);
     free (cur_sector);
     free (zeros);
-    // change the inode length
-    // lock_acquire (&inode->length_lock);
-    // disk_inode->length = newLen;
-    // lock_release (&inode->length_lock);
-    // write back the inode
-    buffer_write (fs_device, inode->sector, disk_inode);
+    buffer_write (fs_device, inode->sector, disk_inode, 0, BLOCK_SECTOR_SIZE);
   }
   lock_release (&inode->extend_lock);
 }
