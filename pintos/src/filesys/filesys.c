@@ -78,13 +78,9 @@ filesys_create_dir (const char *name) {
       && free_map_allocate (1, &inode_sector)
       && inode_create (inode_sector, initial_size)
       && dir_add_directory (dir, part, inode_sector, true));
-  //    && dir_add (dir, part, inode_sector));    
   }
   // find the parents inode_sector
-
   // write the ../ dir_entry back to the inode
-  // printf("here %d, the entry name is %s, the cur name is %s\n",
-  //  success, entry.name, part);
   if (success) {
     char name1[3];
     name1[0] = '.'; name1[1] = '.'; name1[2] = 0;
@@ -93,21 +89,14 @@ filesys_create_dir (const char *name) {
     entry.inode_sector = inode_get_inumber(dir->inode);
     entry.is_dir = true;
     strlcpy (&(entry.name), name1, strlen (name1) + 1);
-    // printf("finish str cpy %s, the sect num is %d\n",
-    //  entry.name, entry.inode_sector);
     struct inode *inode = inode_open (inode_sector);
-    // printf("finish inode open\n");
     inode_write_at(inode, &entry, sizeof (entry), 0);
-    // printf("finish the 1st write\n");
-    // write the ./ dir_entry back to the inode
     strlcpy (&(entry.name), name2, strlen (name2) + 1);
     entry.inode_sector = inode_sector;
-
     inode_write_at(inode, &entry, sizeof (entry), sizeof (entry));
     inode_close (inode);
   }
   
-  // printf("fisnih create file, the sector is %d\n", inode_sector);
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
   dir_close (dir);
@@ -123,8 +112,6 @@ filesys_init (bool format)
   fs_device = block_get_role (BLOCK_FILESYS);
   if (fs_device == NULL)
     PANIC ("No file system device found, can't initialize file system.");
-
-  // added by haoyu 
   // init the buffer
   buffer_init();
   inode_init ();
@@ -152,8 +139,6 @@ filesys_done (void)
 bool
 filesys_create (const char *name, off_t initial_size) 
 {
-  // printf("inside file sys create, file name is %s, the size is %d\n",
-  //  name, initial_size);
   block_sector_t inode_sector = 0;
   struct dir *dir = filesys_curr_dir();
   // ABSOLUTE PATH
@@ -189,7 +174,6 @@ filesys_create (const char *name, off_t initial_size)
       && dir_add (dir, part, inode_sector));    
   }
 
-  // printf("fisnih create file, the sector is %d\n", inode_sector);
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
   dir_close (dir);
@@ -234,7 +218,6 @@ filesys_open (const char *name)
       break;
     }
   }
-  // printf("inside filesys_open, the name is %s\n", part);
   if (success) {
     dir_lookup_files (dir, part, &inode);
   } else {
@@ -298,7 +281,6 @@ filesys_remove (const char *name)
 {
   struct dir *dir = filesys_curr_dir();
   // ABSOLUTE PATH
-  // printf("filesys remove %s\n", name);
   if (name[0] == '/') {
     dir = dir_open_root ();
   } else {
@@ -309,7 +291,6 @@ filesys_remove (const char *name)
     }
     dir = dir_reopen (dir);
   }
-  // printf("here\n");
   char part[NAME_MAX + 1];
   part[0] = 0;
   struct dir_entry entry;
@@ -326,11 +307,9 @@ filesys_remove (const char *name)
   }
 
   if (success) {
-    // printf("here2\n");
     success = dir != NULL && dir_remove (dir, part);
   }
   dir_close (dir);
-  // buffer_update_disk ();
   return success;  
 }
 
@@ -343,7 +322,6 @@ do_format (void)
   if (!dir_create (ROOT_DIR_SECTOR, 16))
     PANIC ("root directory creation failed");
   free_map_close ();
-  // printf ("done.\n");
 }
 
 struct dir *

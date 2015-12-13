@@ -89,10 +89,9 @@ syscall_handler (struct intr_frame *f UNUSED)
     int fd = (int) (args[1]);
     char *buffer = (void *) (args[2]);
     size_t size = (size_t) (args[3]);
-    // printf("we want to write to %d with size %d\n", fd, size);
     int32_t write_num = sys_write_handler(fd, buffer, size);
     f->eax = write_num;
-    // if (write_num == -1) sys_exit_handler(-1);
+    if (write_num == -1) sys_exit_handler(-1);
 
   }
   else if (args[0] == SYS_CREATE)
@@ -486,6 +485,7 @@ sys_write_handler (int fd, void* buffer, int32_t size)
   if (!is_valid_pointer (pd, buffer, size))
   {
     write_num = -1;
+    return write_num;
   }
   if (fd == 1)
   {
@@ -497,7 +497,6 @@ sys_write_handler (int fd, void* buffer, int32_t size)
     struct list *fd_list = &(t->fd_list);
     struct fd_pair *fd_find_pair = get_file_pair(fd, fd_list);
     // if it's a dir then return -1
-    // printf("find a pair, isdir: %d \n", fd_find_pair->is_dir);
     if (fd_find_pair->is_dir) {
       return -1;
     }
@@ -531,10 +530,8 @@ sys_open_handler (char *name)
   {
     struct file *file_pointer = filesys_open (name);
     struct list *fd_list = &(t->fd_list);
-    // printf("sys open hanler: %s\n", name);
     if (file_pointer == NULL) {
       // try open the dir
-      // printf("sys open hanler, open dir: %s\n", name);
       struct dir *dir_pointer = filesys_open_directory (name);
       if (dir_pointer == NULL) {
         return -2;

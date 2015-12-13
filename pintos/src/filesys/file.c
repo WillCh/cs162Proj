@@ -15,13 +15,10 @@ file_open (struct inode *inode)
       file->inode = inode;
       file->pos = 0;
       file->deny_write = false;
-      // add by Haoyu
-      // lock_init(&(file->file_lock));
       return file;
     }
   else
     {
-      // printf("fail to open files\n");
       inode_close (inode);
       free (file);
       return NULL; 
@@ -63,7 +60,6 @@ file_get_inode (struct file *file)
 off_t
 file_read (struct file *file, void *buffer, off_t size) 
 {
-  // printf("file read size is %d\n", size);
   off_t bytes_read = inode_read_at (file->inode, buffer, size, file->pos);
   file->pos += bytes_read;
   return bytes_read;

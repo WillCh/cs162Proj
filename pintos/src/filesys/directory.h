@@ -21,10 +21,6 @@ struct dir
   {
     struct inode *inode;                /* Backing store. */
     off_t pos;                          /* Current position. */
-    struct lock lock_cnf; /* protect the cnf */
-    int cnf;      /* count the number of process open this dir*/
-  	struct lock lock_item; /* protect the item_cnf */
-    int item_cnf;  /* count number of files in this dir */
     bool is_remove; 
   };
 

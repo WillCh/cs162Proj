@@ -83,11 +83,8 @@ lookup (const struct dir *dir, const char *name,
   
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-  // printf("inside lookup\n");
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) {
-    // printf("the file is in use: %d, the name is %s\n",
-    //  e.in_use, e.name);
     if (e.in_use && !strcmp (name, e.name)) 
       {
         if (ep != NULL)
@@ -125,7 +122,11 @@ dir_lookup (const struct dir *dir, const char *name,
   return *inode != NULL;
 }
 
-bool dir_lookup_files (const struct dir *dir, const char *name,
+/* look up the files under the dir.
+ * This function only look the files, not the dir.
+ */
+bool 
+dir_lookup_files (const struct dir *dir, const char *name,
             struct inode **inode) 
 {
   struct dir_entry e;
@@ -136,7 +137,6 @@ bool dir_lookup_files (const struct dir *dir, const char *name,
   if (entry_lookup (dir, name, &e, NULL, false))
     *inode = inode_open (e.inode_sector);
   else {
-    // printf(" inside dir_lookup, fail\n");
     *inode = NULL;
   }
     
@@ -158,8 +158,6 @@ entry_lookup (const struct dir *dir, const char *name,
 
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) {
-    // printf("the file is in use: %d, the name is %s\n",
-    //  e.in_use, e.name);
     if (e.is_dir != is_dir)
       continue;
 
@@ -188,6 +186,8 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   return dir_add_directory (dir, name, inode_sector, false);
 }
 
+/* Function to add a dir, whose name is name under the dir.
+ */ 
 bool
 dir_add_directory (struct dir *dir, const char *name,
    block_sector_t inode_sector, bool is_dir)
@@ -243,13 +243,10 @@ dir_remove (struct dir *dir, const char *name)
 
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
-  // printf("insie dir_remove: %s, dir: %p\n", name, dir);
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
     goto done;
   // check if it's a dir and empty
-  // print
-
   if (e.is_dir && (dir_sizeof(&e) != 0)) {
     goto done;
   }
@@ -303,7 +300,8 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   return false;
 }
 
-// return number of files under this directory
+/* return number of files under this directory.
+ */
 int
 dir_sizeof (struct dir_entry *dir_entry)
 { 

@@ -25,8 +25,8 @@ struct sector_cache
 bool buffer_init(void);
 
 /* Read and write */
-void buffer_read (struct block *block, block_sector_t sector, void *buffer);
-void buffer_write (struct block *block, block_sector_t sector, const void *buffer);
+void buffer_read (struct block *block, block_sector_t sector, void *buffer, off_t offset, off_t size);
+void buffer_write (struct block *block, block_sector_t sector, const void *buffer, off_t offset, off_t size);
 void buffer_update_disk (void);
 void buffer_clean (void);
 
