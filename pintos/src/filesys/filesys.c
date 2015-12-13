@@ -193,6 +193,7 @@ filesys_create (const char *name, off_t initial_size)
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
   dir_close (dir);
+  // buffer_update_disk ();
   return success;
 }
 
@@ -329,6 +330,7 @@ filesys_remove (const char *name)
     success = dir != NULL && dir_remove (dir, part);
   }
   dir_close (dir);
+  // buffer_update_disk ();
   return success;  
 }
 
