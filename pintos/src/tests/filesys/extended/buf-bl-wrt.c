@@ -27,6 +27,8 @@ test_main (void)
   int num_read_middle = buffer_read_num();
   int num_write_middle = buffer_write_num();
 
+  memset(buffer, 2, 512);
+
   seek(fd, 0);
   for (i = 0; i < 16; ++i)
     write(fd, buffer, 512);
