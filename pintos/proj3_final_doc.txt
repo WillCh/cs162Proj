@@ -1,0 +1,77 @@
+CS 162
+Project 3: File Systems
+Final Report
+
+GSI: Aleks
+Group Number: 35
+Haoyu Chen <haoyuchen@berkeley.edu>
+Jason Zhang <runyuzhang@berkeley.edu>
+Chonghao Huang <crhuang@berkeley.edu>
+Hugh Chen <hugh.chen1@gmail.com>
+
+Buffer Cache
+============
+What changes did you make from the design doc?
+The main change we made from our design doc was that we initially forgot to have the data inside of the cache entries.  In order to remedy this we decided to allocate a contiguous space of memory with size SECTOR_SIZE*64 which we maintained pointers to in the cache entry structs.  In addition, we wrote a flushing function in order to flush all the dirty entries whenever file_sys_done is called.
+
+We also changed the API of our buffer_read/write, so that we can read and write with an offset to a sector. Since we use a list with 64 sector's meta data struct and we try LRU policy, each reading/writing may change the structure of the list. In order to handle the multi-threads I/O, a lock is used here to protect the change of the buffer list.
+
+What went well and what could be improved?
+Overall, the buffer worked well, but we could have implemented the optional parts suggested to us in the design document, including the periodic flushing and the read-ahead caching.
+
+Indexed and Extensible Files
+============================
+What changes did you make from the design doc?
+Initially in our design doc, we had some unused space.  After our design review, we decided to switch the unused space to accommodate additional direct pointers. Since our buffer_write/read API provide the function to read/write with an offset, we do not use the bounce any more.
+
+What went well and what could be improved?
+Overall, everything worked well, although one potential optimization is the failure case for creating inodes or extending them.  In this case, we may end up failing free_map_allocate at some arbitrary point, currently we simply return that there was a failure, but optimally the kernel should call free_map_release on everything that was previously allocated.  Additionally, the code at inode.c may be organized better with better modularity.
+
+Subdirectories
+==============
+What changes did you make from the design doc?
+We delete the ref_cnt at the directory struct, which we thought might be useful. Since we alloc a new dir struct everytime we open a directory, we do not need to use the ref_cnt at the directory level to protect the multi-thread remove (It is handled by open_cnt at inode level). A bool is_dir is added for the struct dir_entry, which represents whether this entry is a dir or a file. In order to handle the open dir for the sys-call, we revise the fd_pair struct in process.h to add struct dir *d and bool is_dir.
+
+What went well and what could be improved?
+The whole process went well, but applying two different struct for file/dir looks redundant, maybe shrinking them into one struct would be more proper.
+
+Student Testing 
+===============
+
+Test Case 1: Buffer Hit Rate
+Description: This test tastes whether buffer cache exploits temporal locality by caching recently used data fetched from disk, and thus hit rate improves with subsequent reads of the same data.
+Overview: Buffer cache should theoretically exploits temporal locality by storing recently used data fetched from disk in memory, so subsequent reads of the same data should produce hits in the cache to eliminate the need to fetch from disk again. Therefore, with a cold cache, reading a large file should produce nearly 0 hit rate. Upon closing and reading the same file, the reads should produce cache hits and therefore improves the hit rate. We then compare the hit rate with the cold cache and
+with the warm cache to see whether buffer cache indeeds improves it. The new syscalls are buffer_clean() and buffer_hit_rate(int *access, int *hit). buffer_clean invalidates all cache entries in the buffer cache to produce a cold cache. buffer_hit_rate stores the number of accesses and  hits of the buffer cache in the argument pointers, and reset them to 0.
+Output: The output is "Hit rate improves" if hit rate improves in the second read of the same file, and "Hit rate worsens" otherwise.
+(buf-hit-rate) begin
+(buf-hit-rate) Hit rate improves
+(buf-hit-rate) end
+
+Potential Kernel Bugs:
+If the buffer cache is not able to find the correct cache entry given the sector id, then it would be missing on every cache access and the hit rate would remain the same.
+If the mechanism to fail to clear/invalidate all cache entries, then we would not be able to create a cold cache and therefore influence the hit rates in unpredictable manners.
+
+Test2: Buffer Blind Write
+Description : This test tests two aspects of the buffer cache. First, it tests the buffer cache's ability to write full blocks to disk without reading them first. Second, it tests that blind writes that will be overwritten soon will not be written to disk if cache is big enough.
+
+Overview: Since we implemented a write back cache, a blind write that will be overwritten soon will not make it to disk. We first call buffer_clean() to clear the buffer so that a small amount of writes will not cause sectors to be flushed to disk. Then we perform two rounds of blind writes (16 sectors of 1s) to the file just opened, checking number of buffer reads and buffer writes in between each round to make sure that no reads and writes were performed on the block device by calling buffer_read_num and buffer_wirte_num. Finally, we write something different (16 sectors of 2s) to the same file and flush all cache sectors to disk. The data persisted to disk should be 16 sectors of 2s instead of 16 sectors of 1s.
+
+output: The first two rounds of writes will not incur read and write on the disk but the third round will be flushed to disk. Since we wrote 16 sectors of data pages and there is 1 sector for the inode, the final round will incur 17 writes to the disk. Furthermore, the 16 data sectors on disk will store all 2s.
+(buf-bl-wrt) begin
+(buf-bl-wrt) read_diff_middle_before: 0
+(buf-bl-wrt) write_diff_middle_before: 0
+(buf-bl-wrt) read_diff_end_middle: 0
+(buf-bl-wrt) write_diff_end_middle: 17
+(buf-bl-wrt) end
+
+Two non-trivial potential kernel bugs:
+
+1) If the buffer read from disk before writing to it, the two read_diffs will not be 0.
+
+2) If the buffer wrote to disk in the first two rounds, write_diff_middle_before will not be 0 or write_diff_end_middle will not be 17.
+
+Experience of writing tests of Pintos, and what can be improved about the test system. What did you learn from writing test cases?
+
+It was difficult to start understanding and writing the tests because of the various file extensions (.c, .ck). We wished that the system could be made more intuitive (e.g. use unix diff to compare outputs instead of perl).
+
+From writing the test cases, we learned to think more comprehensively about our system and realized the importance of robustness in system design. 
